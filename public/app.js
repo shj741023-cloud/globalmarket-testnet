@@ -1,13 +1,17 @@
 'use strict';
 
-const state = { user: null, products: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
+const state = { user: null, sessionToken: null, products: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
     ...options,
-    headers: { 'content-type': 'application/json', ...(options.headers || {}) }
+    headers: {
+      'content-type': 'application/json',
+      ...(state.sessionToken ? { authorization: `Bearer ${state.sessionToken}` } : {}),
+      ...(options.headers || {})
+    }
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(`${payload.error?.code || 'ERROR'}: ${payload.error?.message || '요청 실패'}`);
@@ -88,7 +92,7 @@ async function loginPi() {
     log('미완료 Test-Pi 결제 발견', payment);
   });
   const session = await api('/api/v1/auth/pi', { method: 'POST', body: JSON.stringify({ accessToken: auth.accessToken }) });
-  state.user = session.user; $('authState').textContent = `${session.user.username || session.user.id} · 서버 검증 완료`;
+  state.user = session.user; state.sessionToken = session.sessionToken; $('authState').textContent = `${session.user.username || session.user.id} · 서버 검증 완료`;
   $('piLogin').classList.add('hidden'); $('logout').classList.remove('hidden');
   $('checklistPayment').classList.remove('hidden');
   await loadMyMarket();
@@ -209,7 +213,7 @@ async function health() {
   catch { $('health').textContent = '서버 오류'; }
 }
 
-async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.activeRoom = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); ['myPanel', 'chatPanel', 'registerPanel'].forEach((id) => $(id).classList.add('hidden')); }
+async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.sessionToken = null; state.activeRoom = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); ['myPanel', 'chatPanel', 'registerPanel'].forEach((id) => $(id).classList.add('hidden')); }
 
 $('piLogin').addEventListener('click', () => loginPi().catch((error) => alert(error.message)));
 $('logout').addEventListener('click', () => logout().catch((error) => alert(error.message)));

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { SESSION_TTL_MS, parseCookies, tokenHash, createSession, sessionUserId, revokeSession, sessionCookie } = require('../lib/auth');
+const { SESSION_TTL_MS, parseCookies, tokenHash, createSession, sessionUserId, sessionUserIdFromToken, revokeSession, sessionCookie } = require('../lib/auth');
 
 test('쿠키 문자열을 안전하게 분리한다', () => {
   assert.deepEqual(parseCookies('a=1; gm_testnet_session=hello%20world'), { a: '1', gm_testnet_session: 'hello world' });
@@ -20,6 +20,13 @@ test('정상 쿠키 세션에서 사용자 ID를 찾는다', () => {
   const state = { sessions: [] };
   const { token } = createSession(state, 'u1');
   assert.equal(sessionUserId(state, `gm_testnet_session=${token}`), 'u1');
+});
+
+test('PiNet 프록시에서는 메모리 세션 토큰으로 사용자를 확인한다', () => {
+  const state = { sessions: [] };
+  const { token } = createSession(state, 'user-pinet');
+  assert.equal(sessionUserIdFromToken(state, token), 'user-pinet');
+  assert.equal(sessionUserIdFromToken(state, 'wrong-token'), null);
 });
 
 test('만료되거나 폐기된 세션을 거부한다', () => {

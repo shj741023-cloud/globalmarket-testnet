@@ -22,7 +22,7 @@ const {
 } = require('./lib/workflow');
 const { refundQuote, decideDispute } = require('./lib/refunds');
 const { ensureProfile, applyTrustEvent, nextLevel } = require('./lib/trust');
-const { createSession, sessionUserId, revokeSession, sessionCookie, clearSessionCookie } = require('./lib/auth');
+const { createSession, sessionUserId, sessionUserIdFromToken, revokeSession, sessionCookie, clearSessionCookie } = require('./lib/auth');
 const { CATEGORIES, validateProductInput, searchProducts, updateOwnedProduct, changeOwnedProductStatus } = require('./lib/products');
 const { assertParty, createProposal, respondProposal, createOrUpdateAgreement, confirmAgreement, tradeFromAgreement } = require('./lib/agreements');
 const { caseDeadlines, createReport, assignCase, decideCase, auditEntry } = require('./lib/operations');
@@ -74,7 +74,11 @@ async function readJson(req) {
 }
 
 function currentUserId(req) {
-  return sessionUserId(store.state, req.headers.cookie || '');
+  const cookieUserId = sessionUserId(store.state, req.headers.cookie || '');
+  if (cookieUserId) return cookieUserId;
+  const authorization = String(req.headers.authorization || '');
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  return sessionUserIdFromToken(store.state, token);
 }
 
 function requireUserId(req, res) {
@@ -181,7 +185,7 @@ async function handleApi(req, res, url) {
     const { token, session } = createSession(store.state, user.id);
     store.event('USER_AUTHENTICATED', user.id, { sessionId: session.id }); store.save();
     res.setHeader('Set-Cookie', sessionCookie(token, req.headers['x-forwarded-proto'] === 'https'));
-    return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username }, network: NETWORK });
+    return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username }, sessionToken: token, network: NETWORK });
   }
   if (method === 'POST' && pathname === '/api/v1/auth/demo') {
     if (String(process.env.ALLOW_DEMO_AUTH || 'false').toLowerCase() !== 'true') return apiError(res, 403, 'DEMO_AUTH_DISABLED', 'Demo auth is disabled');
