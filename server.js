@@ -31,6 +31,7 @@ const { preparePayment, approvePayment, completePayment, incompletePayments } = 
 const { assertTradeParty, assertTradeBuyer, assertTradeSeller } = require('./lib/trade-access');
 const { listUserTrades, tradeSnapshot } = require('./lib/trade-view');
 const { listUserRooms } = require('./lib/chat-view');
+const { checklistTrade } = require('./lib/checklist');
 
 assertTestnetEnvironment();
 
@@ -229,6 +230,12 @@ async function handleApi(req, res, url) {
       agreement: store.state.agreements.find((item) => item.roomId === room.id) || null
     }));
     return sendJson(res, 200, { ok: true, items });
+  }
+  if (method === 'POST' && pathname === '/api/v1/testnet/checklist-trades') {
+    const buyerId = requireUserId(req, res); if (!buyerId) return;
+    const result = checklistTrade(store.state.trades, buyerId, { id: store.id('trade') });
+    if (!result.idempotent) { store.state.trades.push(result.trade); store.event('PI_CHECKLIST_TRADE_CREATED', result.trade.id); store.save(); }
+    return sendJson(res, result.idempotent ? 200 : 201, { ok: true, trade: result.trade, idempotent: result.idempotent });
   }
   if (method === 'GET' && pathname === '/api/v1/me/trust') {
     const userId = requireUserId(req, res); if (!userId) return;

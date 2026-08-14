@@ -90,6 +90,7 @@ async function loginPi() {
   const session = await api('/api/v1/auth/pi', { method: 'POST', body: JSON.stringify({ accessToken: auth.accessToken }) });
   state.user = session.user; $('authState').textContent = `${session.user.username || session.user.id} · 서버 검증 완료`;
   $('piLogin').classList.add('hidden'); $('logout').classList.remove('hidden');
+  $('checklistPayment').classList.remove('hidden');
   await loadMyMarket();
 }
 
@@ -196,15 +197,23 @@ async function preparePayment() {
   await Pi.createPayment({ amount: payment.buyerTotal, memo: 'Global Market Testnet 기능시험', metadata: { tradeId: state.trade.id, internalPaymentId: payment.id, network: 'testnet' } }, callbacks);
 }
 
+async function runChecklistPayment() {
+  if (!state.user) return alert('Pi Testnet 로그인이 필요합니다.');
+  if (!confirm('Pi 체크리스트 확인용 0.01 Test-Pi 거래입니다. 실제 Pi가 아닙니다. 계속할까요?')) return;
+  const { trade } = await api('/api/v1/testnet/checklist-trades', { method: 'POST' });
+  state.trade = trade; await preparePayment();
+}
+
 async function health() {
   try { const data = await api('/api/v1/health'); $('health').textContent = data.network === 'testnet' ? 'Testnet 정상' : '차단 필요'; }
   catch { $('health').textContent = '서버 오류'; }
 }
 
-async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.activeRoom = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('piLogin').classList.remove('hidden'); ['myPanel', 'chatPanel', 'registerPanel'].forEach((id) => $(id).classList.add('hidden')); }
+async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.activeRoom = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); ['myPanel', 'chatPanel', 'registerPanel'].forEach((id) => $(id).classList.add('hidden')); }
 
 $('piLogin').addEventListener('click', () => loginPi().catch((error) => alert(error.message)));
 $('logout').addEventListener('click', () => logout().catch((error) => alert(error.message)));
+$('checklistPayment').addEventListener('click', () => runChecklistPayment().catch((error) => alert(error.message)));
 $('refresh').addEventListener('click', () => loadProducts().catch((error) => alert(error.message)));
 $('searchForm').addEventListener('submit', (event) => { event.preventDefault(); const params = new URLSearchParams(); [['q', 'searchKeyword'], ['categoryId', 'searchCategory'], ['method', 'searchMethod'], ['minPrice', 'searchMin'], ['maxPrice', 'searchMax']].forEach(([key, id]) => { if ($(id).value) params.set(key, $(id).value); }); loadProducts(params.toString()).catch((error) => alert(error.message)); });
 $('clearSearch').addEventListener('click', () => { $('searchForm').reset(); loadProducts().catch((error) => alert(error.message)); });

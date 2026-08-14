@@ -36,6 +36,8 @@ Pi 로그인 시 프런트엔드가 받은 액세스토큰을 서버의 `/api/v1
 
 Render 배포 시 `render.yaml`을 사용할 수 있습니다. `PI_API_KEY`와 `TEST_ADMIN_KEY`는 저장소 파일에 쓰지 말고 Render의 Secret 환경변수로 입력합니다. `public/validation-key.txt`는 Pi Developer Portal 도메인 확인을 위해 공개되는 파일입니다. 무료 Render 파일시스템은 재시작 시 초기화되므로 기능검증용으로만 사용합니다.
 
+Pi Developer Portal의 Transaction on the App 확인에는 로그인 후 표시되는 `0.01 Test-Pi 연동시험` 버튼을 사용합니다. 이 거래는 Testnet 체크리스트 검증 전용이며 실제 상품거래·실제 Pi·판매자 정산과 분리됩니다.
+
 결제 상태는 별도 모듈에서 관리하며 거래당 활성 결제 1개, Pi 결제 ID와 트랜잭션 ID 중복 차단, 승인 전 완료 금지, 반복 완료의 멱등 처리, 본인 미완료 결제 조회를 적용합니다.
 
 ## 안전 기준
