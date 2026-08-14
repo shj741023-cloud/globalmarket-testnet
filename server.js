@@ -1,0 +1,735 @@
+'use strict';
+
+require('node:http');
+const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
+const { URL } = require('node:url');
+const {
+  NETWORK,
+  ASSET,
+  paymentQuote,
+  assertTestnetEnvironment,
+  assertFinancialTradeAllowed
+} = require('./lib/policy');
+const { Store } = require('./lib/store');
+const {
+  registerShipment,
+  markDelivered,
+  openDispute,
+  confirmPurchase,
+  autoConfirmDue
+} = require('./lib/workflow');
+const { refundQuote, decideDispute } = require('./lib/refunds');
+const { ensureProfile, applyTrustEvent, nextLevel } = require('./lib/trust');
+const { createSession, sessionUserId, revokeSession, sessionCookie, clearSessionCookie } = require('./lib/auth');
+const { CATEGORIES, validateProductInput, searchProducts, updateOwnedProduct, changeOwnedProductStatus } = require('./lib/products');
+const { assertParty, createProposal, respondProposal, createOrUpdateAgreement, confirmAgreement, tradeFromAgreement } = require('./lib/agreements');
+const { caseDeadlines, createReport, assignCase, decideCase, auditEntry } = require('./lib/operations');
+const { createDirectRecord, updateDirectSchedule, completeDirect, cancelDirect } = require('./lib/direct');
+const { preparePayment, approvePayment, completePayment, incompletePayments } = require('./lib/payments');
+const { assertTradeParty, assertTradeBuyer, assertTradeSeller } = require('./lib/trade-access');
+const { listUserTrades, tradeSnapshot } = require('./lib/trade-view');
+const { listUserRooms } = require('./lib/chat-view');
+
+assertTestnetEnvironment();
+
+const PORT = Number(process.env.PORT || 3000);
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const store = new Store(path.join(__dirname, 'data', 'testnet-db.json'));
+
+const contentTypes = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml'
+};
+
+function sendJson(res, status, data) {
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff'
+  });
+  res.end(JSON.stringify(data));
+}
+
+function apiError(res, status, code, message, details) {
+  sendJson(res, status, { ok: false, error: { code, message, details } });
+}
+
+async function readJson(req) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 1_000_000) throw Object.assign(new Error('Request too large'), { code: 'REQUEST_TOO_LARGE' });
+    chunks.push(chunk);
+  }
+  if (!chunks.length) return {};
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+function currentUserId(req) {
+  return sessionUserId(store.state, req.headers.cookie || '');
+}
+
+function requireUserId(req, res) {
+  const userId = currentUserId(req);
+  if (!userId) {
+    apiError(res, 401, 'AUTH_REQUIRED', 'Pi Testnet login is required');
+    return null;
+  }
+  return userId;
+}
+
+function requireTestAdmin(req, res) {
+  const expected = process.env.TEST_ADMIN_KEY;
+  if (!expected) {
+    apiError(res, 503, 'TEST_ADMIN_DISABLED', 'Set TEST_ADMIN_KEY to enable Testnet admin decisions');
+    return false;
+  }
+  if (req.headers['x-test-admin-key'] !== expected) {
+    apiError(res, 403, 'ADMIN_REQUIRED', 'Valid Testnet admin key is required');
+    return false;
+  }
+  return true;
+}
+
+function testAdminId(req) {
+  return String(req.headers['x-test-admin-id'] || 'test-admin');
+}
+
+function notify(userId, type, title, body, relatedId = null) {
+  const item = { id: store.id('notification'), userId, type, title, body, relatedId, readAt: null, createdAt: new Date().toISOString() };
+  store.state.notifications.push(item);
+  return item;
+}
+
+function recordAudit(req, action, targetType, targetId, reason, before, after) {
+  const entry = auditEntry({ id: store.id('audit'), adminId: testAdminId(req), action, targetType, targetId, reason, before, after });
+  store.state.auditLogs.push(entry);
+  return entry;
+}
+
+function findOr404(res, item, type) {
+  if (item) return true;
+  apiError(res, 404, `${type.toUpperCase()}_NOT_FOUND`, `${type} not found`);
+  return false;
+}
+
+async function callPi(pathname, body) {
+  const key = process.env.PI_API_KEY;
+  if (!key) return { simulated: true, reason: 'PI_API_KEY is not configured' };
+  const base = process.env.PI_API_BASE_URL || 'https://api.minepi.com';
+  const response = await fetch(`${base}${pathname}`, {
+    method: 'POST',
+    headers: { authorization: `key ${key}`, 'content-type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error('Pi Testnet API rejected the request'), {
+    code: 'PI_API_ERROR', status: response.status, details: payload
+  });
+  return payload;
+}
+
+async function verifyPiAccessToken(accessToken) {
+  if (!accessToken || typeof accessToken !== 'string') {
+    throw Object.assign(new Error('Pi accessToken is required'), { code: 'PI_ACCESS_TOKEN_REQUIRED', status: 400 });
+  }
+  const base = process.env.PI_API_BASE_URL || 'https://api.minepi.com';
+  const response = await fetch(`${base}/v2/me`, { headers: { authorization: `Bearer ${accessToken}` } });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.uid) {
+    throw Object.assign(new Error('Pi access token verification failed'), { code: 'PI_AUTH_FAILED', status: 401 });
+  }
+  return { uid: String(payload.uid), username: String(payload.username || '') };
+}
+
+async function handleApi(req, res, url) {
+  const method = req.method;
+  const pathname = url.pathname;
+  let match;
+
+  if (method === 'GET' && pathname === '/api/v1/health') {
+    return sendJson(res, 200, { ok: true, network: NETWORK, asset: ASSET, isSimulation: true });
+  }
+  if (method === 'GET' && pathname === '/api/v1/config') {
+    return sendJson(res, 200, {
+      ok: true,
+      network: NETWORK,
+      asset: ASSET,
+      sandbox: true,
+      piServerConnected: Boolean(process.env.PI_API_KEY),
+      warning: 'Test-Pi only. No real payment or seller payout.'
+    });
+  }
+  if (method === 'POST' && pathname === '/api/v1/auth/pi') {
+    const body = await readJson(req);
+    const piUser = await verifyPiAccessToken(body.accessToken);
+    let user = store.state.users.find((item) => item.piUid === piUser.uid);
+    if (!user) {
+      user = { id: store.id('user'), piUid: piUser.uid, username: piUser.username, status: 'active', createdAt: new Date().toISOString() };
+      store.state.users.push(user);
+    } else {
+      user.username = piUser.username || user.username;
+    }
+    const { token, session } = createSession(store.state, user.id);
+    store.event('USER_AUTHENTICATED', user.id, { sessionId: session.id }); store.save();
+    res.setHeader('Set-Cookie', sessionCookie(token, req.headers['x-forwarded-proto'] === 'https'));
+    return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username }, network: NETWORK });
+  }
+  if (method === 'POST' && pathname === '/api/v1/auth/demo') {
+    if (String(process.env.ALLOW_DEMO_AUTH || 'false').toLowerCase() !== 'true') return apiError(res, 403, 'DEMO_AUTH_DISABLED', 'Demo auth is disabled');
+    let user = store.state.users.find((item) => item.piUid === 'demo-testnet-user');
+    if (!user) { user = { id: store.id('user'), piUid: 'demo-testnet-user', username: 'Testnet Demo', status: 'active', createdAt: new Date().toISOString() }; store.state.users.push(user); }
+    const { token } = createSession(store.state, user.id); store.save();
+    res.setHeader('Set-Cookie', sessionCookie(token, false));
+    return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username }, demo: true });
+  }
+  if (method === 'GET' && pathname === '/api/v1/me') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const user = store.state.users.find((item) => item.id === userId);
+    return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username, status: user.status } });
+  }
+  if (method === 'POST' && pathname === '/api/v1/auth/logout') {
+    revokeSession(store.state, req.headers.cookie || ''); store.save();
+    res.setHeader('Set-Cookie', clearSessionCookie(req.headers['x-forwarded-proto'] === 'https'));
+    return sendJson(res, 200, { ok: true });
+  }
+  if (method === 'GET' && pathname === '/api/v1/products') {
+    const query = Object.fromEntries(url.searchParams.entries());
+    return sendJson(res, 200, { ok: true, items: searchProducts(store.state.products, query), filters: query });
+  }
+  if (method === 'GET' && pathname === '/api/v1/categories') {
+    return sendJson(res, 200, { ok: true, items: CATEGORIES });
+  }
+  if (method === 'GET' && pathname === '/api/v1/me/products') {
+    const sellerId = requireUserId(req, res); if (!sellerId) return;
+    return sendJson(res, 200, { ok: true, items: store.state.products.filter((item) => item.sellerId === sellerId).slice().reverse() });
+  }
+  if (method === 'GET' && pathname === '/api/v1/me/trades') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const query = Object.fromEntries(url.searchParams.entries());
+    const items = listUserTrades(store.state.trades, userId, query).map((trade) => ({
+      ...trade,
+      product: store.findProduct(trade.productId) || null
+    }));
+    return sendJson(res, 200, { ok: true, items, filters: query });
+  }
+  if (method === 'GET' && pathname === '/api/v1/me/chat-rooms') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const items = listUserRooms(store.state.chatRooms, userId).map((room) => ({
+      ...room,
+      product: store.findProduct(room.productId) || null,
+      lastMessage: store.state.messages.filter((item) => item.roomId === room.id).at(-1) || null,
+      agreement: store.state.agreements.find((item) => item.roomId === room.id) || null
+    }));
+    return sendJson(res, 200, { ok: true, items });
+  }
+  if (method === 'GET' && pathname === '/api/v1/me/trust') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const profile = ensureProfile(store.state, userId);
+    return sendJson(res, 200, {
+      ok: true,
+      profile,
+      recentEvents: store.state.trustEvents.filter((item) => item.userId === profile.userId).slice(-20).reverse(),
+      nextLevel: nextLevel(profile)
+    });
+  }
+  if (method === 'GET' && pathname === '/api/v1/notifications') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    return sendJson(res, 200, { ok: true, items: store.state.notifications.filter((item) => item.userId === userId).slice(-100).reverse() });
+  }
+  if (method === 'GET' && pathname === '/api/v1/me/reports') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    return sendJson(res, 200, { ok: true, items: store.state.reports.filter((item) => item.reporterId === userId).slice(-100).reverse() });
+  }
+  if (method === 'POST' && pathname === '/api/v1/reports') {
+    const reporterId = requireUserId(req, res); if (!reporterId) return;
+    const body = await readJson(req);
+    const report = createReport({ id: store.id('report'), reporterId, targetType: body.targetType, targetId: body.targetId, reason: body.reason, complexity: body.complexity });
+    store.state.reports.push(report);
+    notify(reporterId, 'report_received', '신고가 접수되었습니다', `접수번호 ${report.id}`, report.id);
+    store.event('REPORT_RECEIVED', report.id); store.save();
+    return sendJson(res, 201, { ok: true, report });
+  }
+  if (method === 'POST' && pathname === '/api/v1/products') {
+    const sellerId = requireUserId(req, res); if (!sellerId) return;
+    const body = await readJson(req);
+    const checked = validateProductInput(body);
+    const product = {
+      id: store.id('product'), sellerId, ...checked.value,
+      status: checked.reviewRequired ? 'under_review' : 'available',
+      reviewReasons: checked.reviewReasons,
+      createdAt: new Date().toISOString()
+    };
+    store.state.products.push(product);
+    store.event(checked.reviewRequired ? 'PRODUCT_REVIEW_REQUESTED' : 'PRODUCT_CREATED', product.id, { reasons: checked.reviewReasons });
+    store.save();
+    return sendJson(res, 201, { ok: true, product });
+  }
+  match = pathname.match(/^\/api\/v1\/products\/([^/]+)$/);
+  if (method === 'PATCH' && match) {
+    const sellerId = requireUserId(req, res); if (!sellerId) return;
+    const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
+    const before = { ...product }; const body = await readJson(req);
+    updateOwnedProduct(product, sellerId, body);
+    store.event('PRODUCT_UPDATED', product.id, { beforeStatus: before.status, afterStatus: product.status });
+    store.save(); return sendJson(res, 200, { ok: true, product });
+  }
+  match = pathname.match(/^\/api\/v1\/products\/([^/]+)\/status$/);
+  if (method === 'PATCH' && match) {
+    const sellerId = requireUserId(req, res); if (!sellerId) return;
+    const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
+    const body = await readJson(req);
+    const hasActiveTrade = store.state.trades.some((item) => item.productId === product.id && !['completed', 'cancelled', 'refunded'].includes(item.status));
+    const result = changeOwnedProductStatus(product, sellerId, body.status, hasActiveTrade);
+    if (!result.idempotent) { store.event('PRODUCT_STATUS_CHANGED', product.id, { status: product.status }); store.save(); }
+    return sendJson(res, 200, { ok: true, product, idempotent: result.idempotent });
+  }
+  if (method === 'POST' && pathname === '/api/v1/trades') {
+    if (String(process.env.ALLOW_QUICK_TRADE || 'false').toLowerCase() !== 'true') {
+      return apiError(res, 410, 'AGREEMENT_FLOW_REQUIRED', 'Use chat and bilateral agreement before creating a trade');
+    }
+    const buyerId = requireUserId(req, res); if (!buyerId) return;
+    const body = await readJson(req);
+    const product = store.findProduct(body.productId);
+    if (!findOr404(res, product, 'product')) return;
+    if (!['direct', 'parcel_testnet'].includes(body.type)) return apiError(res, 400, 'INVALID_TRADE_TYPE', 'Use direct or parcel_testnet');
+    const trade = {
+      id: store.id('trade'), productId: product.id, sellerId: product.sellerId,
+      buyerId, type: body.type, amount: product.price,
+      status: body.type === 'direct' ? 'meeting_agreed' : 'payment_pending',
+      settlementHold: false, createdAt: new Date().toISOString()
+    };
+    store.state.trades.push(trade); store.event('TRADE_CREATED', trade.id, { type: trade.type }); store.save();
+    return sendJson(res, 201, { ok: true, trade });
+  }
+
+  match = pathname.match(/^\/api\/v1\/products\/([^/]+)\/chat-rooms$/);
+  if (method === 'POST' && match) {
+    const buyerId = requireUserId(req, res); if (!buyerId) return;
+    const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
+    if (product.status !== 'available') return apiError(res, 409, 'PRODUCT_NOT_AVAILABLE', 'Product is not available');
+    if (buyerId === product.sellerId) return apiError(res, 409, 'SELF_CHAT_BLOCKED', 'Seller cannot open a buyer chat for own product');
+    let room = store.state.chatRooms.find((item) => item.productId === product.id && item.buyerId === buyerId && item.status === 'active');
+    if (room) return sendJson(res, 200, { ok: true, room, idempotent: true });
+    room = { id: store.id('room'), productId: product.id, sellerId: product.sellerId, buyerId, status: 'active', createdAt: new Date().toISOString() };
+    store.state.chatRooms.push(room); store.event('CHAT_ROOM_CREATED', room.id); store.save();
+    return sendJson(res, 201, { ok: true, room });
+  }
+  match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)$/);
+  if (method === 'GET' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const room = store.state.chatRooms.find((item) => item.id === match[1]); if (!findOr404(res, room, 'chat room')) return;
+    assertParty(room, userId);
+    return sendJson(res, 200, {
+      ok: true, room,
+      messages: store.state.messages.filter((item) => item.roomId === room.id).slice(-100),
+      proposals: store.state.priceProposals.filter((item) => item.roomId === room.id),
+      agreement: store.state.agreements.find((item) => item.roomId === room.id) || null
+    });
+  }
+  match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)\/messages$/);
+  if (method === 'POST' && match) {
+    const senderId = requireUserId(req, res); if (!senderId) return;
+    const room = store.state.chatRooms.find((item) => item.id === match[1]); if (!findOr404(res, room, 'chat room')) return;
+    assertParty(room, senderId); const body = await readJson(req); const content = String(body.content || '').trim();
+    if (!content || content.length > 1000) return apiError(res, 400, 'INVALID_MESSAGE', 'Message must be 1-1000 characters');
+    const message = { id: store.id('message'), roomId: room.id, senderId, content, createdAt: new Date().toISOString() };
+    store.state.messages.push(message); store.save(); return sendJson(res, 201, { ok: true, message });
+  }
+  match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)\/price-proposals$/);
+  if (method === 'POST' && match) {
+    const proposerId = requireUserId(req, res); if (!proposerId) return;
+    const room = store.state.chatRooms.find((item) => item.id === match[1]); if (!findOr404(res, room, 'chat room')) return;
+    const body = await readJson(req); const proposal = createProposal(room, { id: store.id('proposal'), proposerId, price: body.price });
+    store.state.priceProposals.push(proposal); store.save(); return sendJson(res, 201, { ok: true, proposal });
+  }
+  match = pathname.match(/^\/api\/v1\/price-proposals\/([^/]+)\/(accept|reject)$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const proposal = store.state.priceProposals.find((item) => item.id === match[1]); if (!findOr404(res, proposal, 'proposal')) return;
+    const result = respondProposal(proposal, userId, match[2] === 'accept' ? 'accepted' : 'rejected'); store.save();
+    return sendJson(res, 200, { ok: true, proposal, idempotent: result.idempotent });
+  }
+  match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)\/agreements$/);
+  if (method === 'POST' && match) {
+    const actorId = requireUserId(req, res); if (!actorId) return;
+    const room = store.state.chatRooms.find((item) => item.id === match[1]); if (!findOr404(res, room, 'chat room')) return;
+    const product = store.findProduct(room.productId); if (!findOr404(res, product, 'product')) return;
+    const body = await readJson(req); let agreement = store.state.agreements.find((item) => item.roomId === room.id);
+    const isNew = !agreement;
+    agreement = createOrUpdateAgreement(agreement, room, product, { id: store.id('agreement'), actorId, price: body.price, type: body.type });
+    if (isNew) store.state.agreements.push(agreement); store.event('AGREEMENT_UPDATED', agreement.id, { version: agreement.version }); store.save();
+    return sendJson(res, isNew ? 201 : 200, { ok: true, agreement });
+  }
+  match = pathname.match(/^\/api\/v1\/agreements\/([^/]+)\/confirm$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const agreement = store.state.agreements.find((item) => item.id === match[1]); if (!findOr404(res, agreement, 'agreement')) return;
+    const result = confirmAgreement(agreement, userId); store.save();
+    return sendJson(res, 200, { ok: true, agreement, idempotent: result.idempotent });
+  }
+  match = pathname.match(/^\/api\/v1\/agreements\/([^/]+)\/trades$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const agreement = store.state.agreements.find((item) => item.id === match[1]); if (!findOr404(res, agreement, 'agreement')) return;
+    if (![agreement.sellerId, agreement.buyerId].includes(userId)) return apiError(res, 403, 'AGREEMENT_PARTY_REQUIRED', 'Agreement party required');
+    const existing = store.state.trades.find((item) => item.agreementId === agreement.id);
+    const result = tradeFromAgreement(agreement, existing, { id: store.id('trade') });
+    if (!result.idempotent) { store.state.trades.push(result.trade); store.event('TRADE_CREATED', result.trade.id, { agreementId: agreement.id }); store.save(); }
+    return sendJson(res, result.idempotent ? 200 : 201, { ok: true, trade: result.trade, idempotent: result.idempotent });
+  }
+
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)$/);
+  if (method === 'GET' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    return sendJson(res, 200, { ok: true, ...tradeSnapshot(store.state, trade, userId) });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/direct$/);
+  if (method === 'GET' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    if (![trade.sellerId, trade.buyerId].includes(userId)) return apiError(res, 403, 'DIRECT_TRADE_PARTY_REQUIRED', 'Direct trade party required');
+    const record = store.state.directTradeRecords.find((item) => item.tradeId === trade.id) || null;
+    return sendJson(res, 200, { ok: true, trade, record, notice: '플랫폼은 직거래 결제·보관·정산·환불을 제공하지 않습니다.' });
+  }
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    const existing = store.state.directTradeRecords.find((item) => item.tradeId === trade.id);
+    if (existing) return sendJson(res, 200, { ok: true, record: existing, idempotent: true });
+    const body = await readJson(req); const record = createDirectRecord(trade, { ...body, userId });
+    store.state.directTradeRecords.push(record); store.event('DIRECT_SCHEDULE_CREATED', trade.id); store.save();
+    return sendJson(res, 201, { ok: true, record });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/direct\/schedule$/);
+  if (method === 'PATCH' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    const record = store.state.directTradeRecords.find((item) => item.tradeId === trade.id); if (!findOr404(res, record, 'direct record')) return;
+    const body = await readJson(req); updateDirectSchedule(trade, record, { ...body, userId });
+    store.event('DIRECT_SCHEDULE_UPDATED', trade.id); store.save(); return sendJson(res, 200, { ok: true, record });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/direct\/complete$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    const record = store.state.directTradeRecords.find((item) => item.tradeId === trade.id); if (!findOr404(res, record, 'direct record')) return;
+    const wasCompleted = trade.status === 'completed'; const result = completeDirect(trade, record, userId);
+    if (!wasCompleted && trade.status === 'completed') {
+      for (const partyId of [trade.sellerId, trade.buyerId]) applyTrustEvent(store.state, {
+        id: store.id('trust'), uniqueKey: `transaction_completed:${trade.id}:${partyId}`,
+        userId: partyId, tradeId: trade.id, type: 'transaction_completed', reason: '직거래 양쪽 완료'
+      });
+    }
+    store.event('DIRECT_COMPLETION_MARKED', trade.id, { userId }); store.save();
+    return sendJson(res, 200, { ok: true, trade, record, idempotent: result.idempotent });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/direct\/cancel$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    const record = store.state.directTradeRecords.find((item) => item.tradeId === trade.id); if (!findOr404(res, record, 'direct record')) return;
+    const body = await readJson(req); const result = cancelDirect(trade, record, userId, body.reason);
+    store.event('DIRECT_CANCELED', trade.id, { userId }); store.save();
+    return sendJson(res, 200, { ok: true, trade, record, idempotent: result.idempotent });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/payment-quote$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    assertTradeParty(trade, userId);
+    assertFinancialTradeAllowed(trade);
+    return sendJson(res, 200, { ok: true, quote: paymentQuote(trade.amount, 0) });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/payments$/);
+  if (method === 'POST' && match) {
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    const userId = requireUserId(req, res); if (!userId) return;
+    if (userId !== trade.buyerId) return apiError(res, 403, 'BUYER_REQUIRED', 'Only the buyer can prepare payment');
+    const result = preparePayment(trade, store.state.payments, { id: store.id('payment'), networkFee: 0 });
+    if (!result.idempotent) { store.state.payments.push(result.payment); store.event('PAYMENT_PREPARED', result.payment.id); store.save(); }
+    return sendJson(res, result.idempotent ? 200 : 201, { ok: true, payment: result.payment, idempotent: result.idempotent });
+  }
+  match = pathname.match(/^\/api\/v1\/payments\/([^/]+)\/approve$/);
+  if (method === 'POST' && match) {
+    const payment = store.findPayment(match[1]); if (!findOr404(res, payment, 'payment')) return;
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(payment.tradeId); if (!findOr404(res, trade, 'trade')) return;
+    assertTradeBuyer(trade, userId);
+    const body = await readJson(req);
+    if (!body.piPaymentId) return apiError(res, 400, 'PI_PAYMENT_ID_REQUIRED', 'piPaymentId is required');
+    const beforeApproval = { providerPaymentId: payment.providerPaymentId, status: payment.status, approvedAt: payment.approvedAt };
+    const stateResult = approvePayment(payment, store.state.payments, body.piPaymentId);
+    if (stateResult.idempotent) return sendJson(res, 200, { ok: true, payment, idempotent: true });
+    let piResult;
+    try {
+      piResult = await callPi(`/v2/payments/${encodeURIComponent(body.piPaymentId)}/approve`);
+    } catch (error) {
+      Object.assign(payment, beforeApproval);
+      throw error;
+    }
+    store.event('PAYMENT_APPROVED', payment.id, { simulatedProvider: Boolean(piResult.simulated) }); store.save();
+    return sendJson(res, 200, { ok: true, payment, provider: piResult });
+  }
+  match = pathname.match(/^\/api\/v1\/payments\/([^/]+)\/complete$/);
+  if (method === 'POST' && match) {
+    const payment = store.findPayment(match[1]); if (!findOr404(res, payment, 'payment')) return;
+    const userId = requireUserId(req, res); if (!userId) return;
+    const paymentTrade = store.findTrade(payment.tradeId); if (!findOr404(res, paymentTrade, 'trade')) return;
+    assertTradeBuyer(paymentTrade, userId);
+    const body = await readJson(req);
+    if (payment.status === 'completed' && payment.txid === body.txid) return sendJson(res, 200, { ok: true, payment, idempotent: true });
+    if (!payment.providerPaymentId || !body.txid) return apiError(res, 400, 'PAYMENT_COMPLETION_DATA_REQUIRED', 'approved payment and txid are required');
+    if (payment.status !== 'approved') return apiError(res, 409, 'PAYMENT_NOT_APPROVED', 'Server approval is required before completion');
+    const duplicateTxid = store.state.payments.find((item) => item.id !== payment.id && item.txid === body.txid);
+    if (duplicateTxid) return apiError(res, 409, 'DUPLICATE_TXID', 'Transaction ID is already linked');
+    const piResult = await callPi(`/v2/payments/${encodeURIComponent(payment.providerPaymentId)}/complete`, { txid: body.txid });
+    const trade = paymentTrade;
+    completePayment(payment, store.state.payments, trade, body.txid);
+    store.event('PAYMENT_COMPLETED', payment.id, { simulatedProvider: Boolean(piResult.simulated) }); store.save();
+    return sendJson(res, 200, { ok: true, payment, trade, provider: piResult });
+  }
+  if (method === 'GET' && pathname === '/api/v1/payments/incomplete') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const tradeIds = store.state.trades.filter((item) => item.buyerId === userId).map((item) => item.id);
+    return sendJson(res, 200, { ok: true, items: incompletePayments(store.state.payments, tradeIds) });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/mock-settlement$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    assertFinancialTradeAllowed(trade);
+    if (trade.settlementHold) return apiError(res, 409, 'SETTLEMENT_HELD', 'Settlement is held by a dispute');
+    if (!['purchase_confirmed', 'completed'].includes(trade.status)) return apiError(res, 409, 'PURCHASE_NOT_CONFIRMED', 'Purchase confirmation is required');
+    const existing = store.state.settlements.find((item) => item.tradeId === trade.id);
+    if (existing) return sendJson(res, 200, { ok: true, settlement: existing, idempotent: true });
+    const quote = paymentQuote(trade.amount, 0);
+    const settlement = {
+      id: store.id('settlement'), tradeId: trade.id, network: NETWORK, asset: ASSET,
+      isSimulation: true, grossAmount: trade.amount, sellerFee: quote.sellerFee,
+      netAmount: quote.sellerExpectedSettlement, externalPayoutId: null,
+      status: 'mock_completed', completedAt: new Date().toISOString()
+    };
+    store.state.settlements.push(settlement); store.event('MOCK_SETTLEMENT_COMPLETED', settlement.id); store.save();
+    return sendJson(res, 201, { ok: true, settlement });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/shipment$/);
+  if (method === 'POST' && match) {
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    const actor = requireUserId(req, res); if (!actor) return;
+    assertTradeSeller(trade, actor);
+    const existing = store.findShipmentByTrade(trade.id);
+    if (existing) return sendJson(res, 200, { ok: true, shipment: existing, idempotent: true });
+    const body = await readJson(req);
+    const shipment = registerShipment(trade, { ...body, id: store.id('shipment') });
+    store.state.shipments.push(shipment); store.event('SHIPMENT_REGISTERED', shipment.id); store.save();
+    return sendJson(res, 201, { ok: true, shipment, trade });
+  }
+  if (method === 'GET' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    assertTradeParty(trade, userId);
+    const shipment = store.findShipmentByTrade(trade.id); if (!findOr404(res, shipment, 'shipment')) return;
+    return sendJson(res, 200, { ok: true, shipment });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/shipment\/delivered$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    const shipment = store.findShipmentByTrade(trade.id); if (!findOr404(res, shipment, 'shipment')) return;
+    markDelivered(trade, shipment); store.event('SHIPMENT_DELIVERED', shipment.id, { autoConfirmAt: shipment.autoConfirmAt }); store.save();
+    return sendJson(res, 200, { ok: true, shipment, trade });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/confirm-purchase$/);
+  if (method === 'POST' && match) {
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    const actor = requireUserId(req, res); if (!actor) return;
+    if (actor !== trade.buyerId) return apiError(res, 403, 'BUYER_REQUIRED', 'Only the buyer can confirm purchase');
+    const result = confirmPurchase(trade);
+    applyTrustEvent(store.state, {
+      id: store.id('trust'), uniqueKey: `purchase_confirmed:${trade.id}:${trade.buyerId}`,
+      userId: trade.buyerId, tradeId: trade.id, type: 'purchase_confirmed', reason: '구매자 직접 구매확정'
+    });
+    store.event('PURCHASE_CONFIRMED', trade.id, { mode: 'buyer' }); store.save();
+    return sendJson(res, 200, { ok: true, trade, idempotent: result.idempotent });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/disputes$/);
+  if (method === 'POST' && match) {
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    const actor = requireUserId(req, res); if (!actor) return;
+    if (![trade.buyerId, trade.sellerId].includes(actor)) return apiError(res, 403, 'TRADE_PARTY_REQUIRED', 'Only a trade party can open a dispute');
+    const existing = store.state.disputes.find((item) => item.tradeId === trade.id && item.status !== 'closed');
+    if (existing) return sendJson(res, 200, { ok: true, dispute: existing, idempotent: true });
+    const body = await readJson(req);
+    if (!body.reason) return apiError(res, 400, 'DISPUTE_REASON_REQUIRED', 'reason is required');
+    const dispute = openDispute(trade, { id: store.id('dispute'), applicantId: actor, reason: body.reason });
+    Object.assign(dispute, caseDeadlines(dispute.createdAt, body.complexity));
+    store.state.disputes.push(dispute); store.event('DISPUTE_OPENED', dispute.id); store.save();
+    return sendJson(res, 201, { ok: true, dispute, trade });
+  }
+  if (method === 'POST' && pathname === '/api/v1/internal/auto-confirm') {
+    if (!requireTestAdmin(req, res)) return;
+    const confirmed = [];
+    for (const trade of store.state.trades) {
+      const shipment = store.findShipmentByTrade(trade.id);
+      if (autoConfirmDue(trade, shipment)) {
+        confirmPurchase(trade, new Date(), 'automatic');
+        applyTrustEvent(store.state, {
+          id: store.id('trust'), uniqueKey: `purchase_confirmed:${trade.id}:${trade.buyerId}`,
+          userId: trade.buyerId, tradeId: trade.id, type: 'purchase_confirmed', reason: '자동 구매확정'
+        });
+        store.event('PURCHASE_AUTO_CONFIRMED', trade.id);
+        confirmed.push(trade.id);
+      }
+    }
+    if (confirmed.length) store.save();
+    return sendJson(res, 200, { ok: true, confirmedTradeIds: confirmed });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/reviews$/);
+  if (method === 'POST' && match) {
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    const writerId = requireUserId(req, res); if (!writerId) return;
+    if (![trade.buyerId, trade.sellerId].includes(writerId)) return apiError(res, 403, 'TRADE_PARTY_REQUIRED', 'Only a trade party can review');
+    if (!['purchase_confirmed', 'completed'].includes(trade.status)) return apiError(res, 409, 'TRADE_NOT_COMPLETED', 'Completed trade is required');
+    const existing = store.state.reviews.find((item) => item.tradeId === trade.id && item.writerId === writerId);
+    if (existing) return sendJson(res, 200, { ok: true, review: existing, idempotent: true });
+    const body = await readJson(req);
+    if (!['positive', 'neutral', 'negative'].includes(body.sentiment)) return apiError(res, 400, 'INVALID_REVIEW', 'sentiment is required');
+    const targetUserId = writerId === trade.buyerId ? trade.sellerId : trade.buyerId;
+    const review = {
+      id: store.id('review'), tradeId: trade.id, writerId, targetUserId,
+      sentiment: body.sentiment, tags: Array.isArray(body.tags) ? body.tags.slice(0, 5) : [],
+      comment: String(body.comment || '').slice(0, 500), createdAt: new Date().toISOString()
+    };
+    store.state.reviews.push(review);
+    if (body.sentiment === 'positive') {
+      applyTrustEvent(store.state, {
+        id: store.id('trust'), uniqueKey: `positive_review:${review.id}`,
+        userId: targetUserId, tradeId: trade.id, type: 'positive_review', reason: '긍정 후기'
+      });
+    }
+    store.event('REVIEW_CREATED', review.id); store.save();
+    return sendJson(res, 201, { ok: true, review, targetTrust: ensureProfile(store.state, targetUserId) });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/users\/([^/]+)\/trust-violations$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const body = await readJson(req);
+    if (!body.decisionId || !body.reason) return apiError(res, 400, 'VIOLATION_DECISION_REQUIRED', 'decisionId and reason are required');
+    const result = applyTrustEvent(store.state, {
+      id: store.id('trust'), uniqueKey: `confirmed_violation:${body.decisionId}`,
+      userId: match[1], type: 'confirmed_violation', penalty: body.penalty,
+      reason: body.reason, options: { majorViolation: Number(body.penalty) >= 15 }
+    });
+    store.event('TRUST_VIOLATION_APPLIED', result.event.id); store.save();
+    return sendJson(res, 200, { ok: true, ...result });
+  }
+  match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/refund-quote$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    assertTradeParty(trade, userId);
+    assertFinancialTradeAllowed(trade);
+    const body = await readJson(req);
+    const quote = refundQuote(trade.amount, body.retainedAmount ?? 0, body.networkFee ?? 0);
+    return sendJson(res, 200, { ok: true, quote });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/disputes\/([^/]+)\/decision$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const dispute = store.state.disputes.find((item) => item.id === match[1]);
+    if (!findOr404(res, dispute, 'dispute')) return;
+    if (dispute.status === 'closed') return sendJson(res, 200, { ok: true, dispute, idempotent: true });
+    const trade = store.findTrade(dispute.tradeId); if (!findOr404(res, trade, 'trade')) return;
+    const body = await readJson(req);
+    if (!body.reason) return apiError(res, 400, 'DECISION_REASON_REQUIRED', 'reason is required');
+    const before = structuredClone(dispute);
+    const result = decideDispute(trade, dispute, body);
+    let refund = null;
+    if (result.quote) {
+      refund = {
+        id: store.id('refund'), tradeId: trade.id, disputeId: dispute.id,
+        network: NETWORK, asset: ASSET, isSimulation: true,
+        ...result.quote, status: 'mock_completed', externalRefundId: null,
+        completedAt: new Date().toISOString()
+      };
+      store.state.refunds.push(refund);
+    }
+    recordAudit(req, 'DISPUTE_DECIDED', 'dispute', dispute.id, body.reason, before, dispute);
+    notify(dispute.applicantId, 'dispute_decided', '분쟁 판정이 완료되었습니다', body.reason, dispute.id);
+    store.event('DISPUTE_DECIDED', dispute.id, { type: body.type, refundId: refund?.id || null }); store.save();
+    return sendJson(res, 200, { ok: true, dispute, trade, refund });
+  }
+  if (method === 'GET' && pathname === '/api/v1/admin/reports') {
+    if (!requireTestAdmin(req, res)) return;
+    return sendJson(res, 200, { ok: true, items: store.state.reports });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/reports\/([^/]+)\/assign$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const report = store.state.reports.find((item) => item.id === match[1]); if (!findOr404(res, report, 'report')) return;
+    const body = await readJson(req); const adminId = body.adminId || testAdminId(req); const before = structuredClone(report);
+    const result = assignCase(report, adminId);
+    recordAudit(req, 'REPORT_ASSIGNED', 'report', report.id, body.reason || '담당자 배정', before, report);
+    store.save(); return sendJson(res, 200, { ok: true, report, idempotent: result.idempotent });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/reports\/([^/]+)\/decision$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const report = store.state.reports.find((item) => item.id === match[1]); if (!findOr404(res, report, 'report')) return;
+    if (report.status === 'closed') return sendJson(res, 200, { ok: true, report, idempotent: true });
+    const body = await readJson(req); const before = structuredClone(report);
+    const result = decideCase(report, { ...body, adminId: testAdminId(req) });
+    recordAudit(req, 'REPORT_DECIDED', 'report', report.id, body.reason, before, report);
+    notify(report.reporterId, 'report_decided', '신고 처리결과가 등록되었습니다', body.reason, report.id);
+    store.save(); return sendJson(res, 200, { ok: true, report, idempotent: result.idempotent });
+  }
+  if (method === 'GET' && pathname === '/api/v1/admin/audit-logs') {
+    if (!requireTestAdmin(req, res)) return;
+    return sendJson(res, 200, { ok: true, items: store.state.auditLogs.slice(-500).reverse() });
+  }
+  match = pathname.match(/^\/api\/v1\/notifications\/([^/]+)\/read$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const item = store.state.notifications.find((entry) => entry.id === match[1] && entry.userId === userId);
+    if (!findOr404(res, item, 'notification')) return;
+    item.readAt ||= new Date().toISOString(); store.save(); return sendJson(res, 200, { ok: true, notification: item });
+  }
+  return apiError(res, 404, 'ROUTE_NOT_FOUND', 'API route not found');
+}
+
+function serveStatic(res, pathname) {
+  const requested = pathname === '/' ? '/index.html' : pathname;
+  const filePath = path.normalize(path.join(PUBLIC_DIR, requested));
+  if (!filePath.startsWith(PUBLIC_DIR) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    res.writeHead(404); return res.end('Not found');
+  }
+  res.writeHead(200, { 'Content-Type': contentTypes[path.extname(filePath)] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff' });
+  fs.createReadStream(filePath).pipe(res);
+}
+
+const server = http.createServer(async (req, res) => {
+  try {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    if (url.pathname.startsWith('/api/')) return await handleApi(req, res, url);
+    return serveStatic(res, url.pathname);
+  } catch (error) {
+    console.error(error.code || 'SERVER_ERROR', error.message);
+    return apiError(res, error.status || 400, error.code || 'BAD_REQUEST', error.message, error.details);
+  }
+});
+
+if (require.main === module) {
+  const host = process.env.HOST || '127.0.0.1';
+  server.listen(PORT, host, () => console.log(`Global Market Testnet: http://${host}:${PORT}`));
+}
+
+module.exports = { server, store };

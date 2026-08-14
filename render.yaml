@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: globalmarket-testnet
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: ALLOW_DEMO_AUTH
+        value: "false"
+      - key: PI_API_BASE_URL
+        value: https://api.minepi.com
+      - key: PI_API_KEY
+        sync: false
+      - key: TEST_ADMIN_KEY
+        sync: false
+
