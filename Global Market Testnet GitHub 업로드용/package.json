@@ -1,0 +1,13 @@
+{
+  "name": "global-market-testnet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Global Market Pi Testnet MVP prototype",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

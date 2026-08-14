@@ -728,7 +728,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 if (require.main === module) {
-  const host = process.env.HOST || '0.0.0.0';
+  const host = process.env.HOST || '127.0.0.1';
   server.listen(PORT, host, () => console.log(`Global Market Testnet: http://${host}:${PORT}`));
 }
 

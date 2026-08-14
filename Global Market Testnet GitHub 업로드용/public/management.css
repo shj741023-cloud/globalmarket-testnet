@@ -1,0 +1,42 @@
+.management-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.management-tabs button { flex: 1; padding: 11px; border-radius: 10px; background: #edf2ef; color: #52645d; }
+.management-tabs button.active { background: #132a22; color: #fff; }
+.management-list { display: grid; gap: 10px; }
+.management-card { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid #d9ddd7; border-radius: 16px; background: #fffefa; text-align: left; color: #132a22; }
+.management-card h3 { margin: 4px 0; }
+.management-card p, .management-card small { margin: 0; color: #64736d; }
+.management-card > button { padding: 9px 11px; border-radius: 9px; background: #edf2ef; white-space: nowrap; }
+.trade-card { cursor: pointer; }
+.empty { padding: 24px; border-radius: 16px; background: #edf2ef; text-align: center; color: #64736d; }
+.form-notice { padding: 12px; border-radius: 12px; background: #fff0cf; font-size: 13px; }
+.product-form { display: grid; gap: 14px; }
+.product-form label:not(.check) { display: grid; gap: 6px; font-weight: 700; }
+.product-form input, .product-form textarea, .product-form select { width: 100%; padding: 12px; border: 1px solid #d9ddd7; border-radius: 10px; background: #fff; font: inherit; }
+.product-form textarea { min-height: 120px; resize: vertical; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.product-form fieldset { display: flex; gap: 18px; border: 1px solid #d9ddd7; border-radius: 12px; padding: 12px; }
+.product-form legend { padding: 0 5px; font-weight: 700; }
+.check { display: flex; align-items: center; gap: 7px; }
+.check input { width: auto; }
+@media (max-width: 520px) { .form-row { grid-template-columns: 1fr; } .product-form fieldset { flex-direction: column; gap: 8px; } }
+.chat-messages { display: grid; gap: 8px; padding: 12px; background: #edf2ef; border-radius: 12px; max-height: 320px; overflow: auto; }
+.chat-messages p { width: fit-content; max-width: 85%; margin: 0; padding: 9px 11px; border-radius: 12px; background: #fff; }
+.chat-messages p.mine { margin-left: auto; background: #dff2a6; }
+.message-form { display: flex; gap: 8px; margin-top: 10px; }
+.message-form input { flex: 1; min-width: 0; padding: 11px; border: 1px solid #d9ddd7; border-radius: 10px; }
+.agreement-box { margin-top: 14px; padding: 14px; border-radius: 12px; background: #fff0cf; }
+.agreement-box button { margin-right: 8px; }
+.search-form { display: grid; grid-template-columns: 2fr repeat(4, 1fr) auto auto; gap: 8px; margin-bottom: 16px; }
+.search-form input, .search-form select { min-width: 0; padding: 10px; border: 1px solid #d9ddd7; border-radius: 10px; background: #fff; }
+.card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.card-actions button { padding: 8px 10px; border-radius: 8px; background: #edf2ef; }
+.management-card.unread { border-color: #1f6b4f; background: #f6faed; }
+@media (max-width: 760px) { .search-form { grid-template-columns: 1fr 1fr; } .search-form input:first-child { grid-column: 1 / -1; } }
+.detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.detail-grid p { display: grid; gap: 3px; margin: 0; padding: 11px; border-radius: 10px; background: #edf2ef; }
+.detail-grid small { color: #64736d; }
+@media (max-width: 520px) { .detail-grid { grid-template-columns: 1fr; } }
+.trust-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+.trust-summary div { display: grid; gap: 3px; padding: 12px; border-radius: 12px; background: #dff2a6; }
+.trust-summary small { color: #52645d; }
+@media (max-width: 520px) { .trust-summary { grid-template-columns: repeat(2, 1fr); } }

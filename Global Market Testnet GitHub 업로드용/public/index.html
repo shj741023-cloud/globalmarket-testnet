@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#132a22">
+  <title>Global Market Testnet</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/management.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">PI TESTNET MVP</p>
+      <h1>Global Market</h1>
+    </div>
+    <span class="network">Test-Pi 전용</span>
+  </header>
+
+  <main>
+    <section class="warning" aria-label="Testnet 안내">
+      <strong>실제 결제가 아닙니다</strong>
+      <p>Pi Testnet의 Test-Pi를 사용하는 기능시험입니다. 실제 Pi·현금 결제나 판매자 지급을 보장하지 않습니다.</p>
+    </section>
+
+    <section class="hero">
+      <p class="eyebrow">국내 개인 간 중고거래 시험판</p>
+      <h2>거래의 흐름을<br>안전하게 먼저 시험합니다.</h2>
+      <p>직거래는 당사자 책임, 택배 거래는 Test-Pi 모의 안전거래로 분리합니다.</p>
+      <div class="actions">
+        <button id="piLogin" class="primary">Pi Testnet 로그인</button>
+        <button id="logout" class="secondary hidden">로그아웃</button>
+        <button id="refresh" class="secondary">상품 새로고침</button>
+      </div>
+      <p id="authState" class="status">로그인 전 · 데모 사용자로 API 시험 가능</p>
+    </section>
+
+    <section>
+      <div class="section-title">
+        <div><p class="eyebrow">TEST PRODUCTS</p><h2>시험 상품</h2></div>
+        <span id="health" class="health">서버 확인 중</span>
+      </div>
+      <form id="searchForm" class="search-form">
+        <input id="searchKeyword" placeholder="상품명 또는 설명 검색">
+        <select id="searchCategory"><option value="">전체 카테고리</option></select>
+        <select id="searchMethod"><option value="">모든 거래방식</option><option value="direct">직거래</option><option value="parcel_testnet">Testnet 택배</option></select>
+        <input id="searchMin" type="number" min="0" step="any" placeholder="최저가">
+        <input id="searchMax" type="number" min="0" step="any" placeholder="최고가">
+        <button class="primary">검색</button><button id="clearSearch" class="secondary" type="button">초기화</button>
+      </form>
+      <div id="products" class="product-grid" aria-live="polite"></div>
+    </section>
+
+    <section id="myPanel" class="hidden">
+      <div class="section-title"><div><p class="eyebrow">MY MARKET</p><h2>내 마켓</h2></div><button id="refreshMy" class="secondary">새로고침</button></div>
+      <div id="trustSummary" class="trust-summary"></div>
+      <div class="management-tabs"><button id="showMyProducts" class="active">내 상품</button><button id="showMyTrades">내 거래</button></div>
+      <div id="myProducts" class="management-list"></div><div id="myTrades" class="management-list hidden"></div>
+      <div id="tradeDetailCard" class="panel hidden"><div id="tradeDetailContent"></div><div id="tradeActions" class="actions"></div></div>
+      <div class="section-title"><div><p class="eyebrow">NOTIFICATIONS</p><h2>알림</h2></div></div>
+      <div id="notifications" class="management-list"></div>
+    </section>
+
+    <section id="registerPanel" class="panel hidden">
+      <div class="section-title"><div><p class="eyebrow">SELL TEST ITEM</p><h2>중고상품 등록</h2></div></div>
+      <p class="form-notice">개인 소유 실물 중고품만 등록할 수 있습니다. 제한품목 의심 내용은 공개되지 않고 검토 상태로 접수됩니다.</p>
+      <form id="productForm" class="product-form">
+        <label>상품명<input id="productTitle" name="title" minlength="2" maxlength="80" required></label>
+        <label>설명<textarea id="productDescription" name="description" minlength="10" maxlength="2000" required></textarea></label>
+        <div class="form-row"><label>가격(Test-Pi)<input id="productPrice" name="price" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="productCategory" name="categoryId" required></select></label></div>
+        <label>거래 지역<input id="productRegion" name="region" maxlength="60" placeholder="예: 서울 강남구"></label>
+        <fieldset><legend>거래방식</legend><label class="check"><input id="methodDirect" type="checkbox" checked> 직거래(당사자 책임)</label><label class="check"><input id="methodParcel" type="checkbox" checked> Testnet 택배</label></fieldset>
+        <button class="primary" type="submit">시험 상품 등록</button>
+        <p id="registerResult" class="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section id="chatPanel" class="hidden">
+      <div class="section-title"><div><p class="eyebrow">MY CHATS</p><h2>내 채팅</h2></div><button id="refreshChats" class="secondary">새로고침</button></div>
+      <div id="chatRooms" class="management-list"></div>
+      <div id="chatDetail" class="panel hidden">
+        <h3 id="chatTitle">거래 채팅</h3><div id="chatMessages" class="chat-messages"></div>
+        <form id="messageForm" class="message-form"><input id="messageText" maxlength="1000" placeholder="메시지를 입력하세요" required><button class="primary">전송</button></form>
+        <div id="agreementBox" class="agreement-box"></div>
+      </div>
+    </section>
+
+    <section id="tradePanel" class="panel hidden">
+      <div class="section-title"><div><p class="eyebrow">TRADE LAB</p><h2 id="tradeTitle">거래 시험</h2></div></div>
+      <div id="tradeNotice" class="trade-notice"></div>
+      <div id="quote" class="quote"></div>
+      <div class="actions">
+        <button id="preparePayment" class="primary">Test-Pi 결제 준비</button>
+        <button id="mockComplete" class="secondary">모의 구매확정</button>
+      </div>
+      <pre id="log" class="log" aria-live="polite"></pre>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="기본 메뉴">
+    <button id="navHome">홈</button><button id="navSearch">검색</button><button id="navRegister">등록</button><button id="navChat">채팅</button><button id="navMy">마이</button>
+  </nav>
+
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
