@@ -409,7 +409,7 @@ async function handleApi(req, res, url) {
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
     if (![trade.sellerId, trade.buyerId].includes(userId)) return apiError(res, 403, 'DIRECT_TRADE_PARTY_REQUIRED', 'Direct trade party required');
     const record = store.state.directTradeRecords.find((item) => item.tradeId === trade.id) || null;
-    return sendJson(res, 200, { ok: true, trade, record, notice: '플랫폼은 직거래 결제·보관·정산·환불을 제공하지 않습니다.' });
+    return sendJson(res, 200, { ok: true, trade, record, notice: '직거래는 개인 Pi 지갑 송금만 허용하며 플랫폼은 결제·보관·정산·환불을 제공하지 않습니다.' });
   }
   if (method === 'POST' && match) {
     const userId = requireUserId(req, res); if (!userId) return;

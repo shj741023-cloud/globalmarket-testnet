@@ -2,19 +2,23 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createDirectRecord, updateDirectSchedule, completeDirect, cancelDirect } = require('../lib/direct');
+const { DIRECT_PAYMENT_METHOD, createDirectRecord, updateDirectSchedule, completeDirect, cancelDirect } = require('../lib/direct');
 
 const directTrade = () => ({ id: 't1', type: 'direct', sellerId: 'seller', buyerId: 'buyer', status: 'meeting_agreed' });
-const input = { userId: 'buyer', noticeAccepted: true, scheduledAt: '2026-08-15T03:00:00Z', place: '서울역', paymentMethod: '현장에서 당사자 직접 합의' };
+const input = { userId: 'buyer', noticeAccepted: true, scheduledAt: '2026-08-15T03:00:00Z', place: '서울역', paymentMethod: DIRECT_PAYMENT_METHOD };
 
 test('본인 책임 안내 확인 전에는 직거래 약속을 만들지 않는다', () => {
   assert.throws(() => createDirectRecord(directTrade(), { ...input, noticeAccepted: false }), /Own-risk notice/);
 });
 
-test('시간·장소·당사자 결제방법을 모두 기록한다', () => {
+test('시간·장소·개인 Pi 지갑 송금을 기록한다', () => {
   const record = createDirectRecord(directTrade(), input);
   assert.equal(record.place, '서울역');
-  assert.equal(record.paymentMethod, '현장에서 당사자 직접 합의');
+  assert.equal(record.paymentMethod, DIRECT_PAYMENT_METHOD);
+});
+
+test('직거래에서 Pi 이외의 결제방법을 차단한다', () => {
+  assert.throws(() => createDirectRecord(directTrade(), { ...input, paymentMethod: 'cash' }), /only allow a personal Pi wallet/);
 });
 
 test('거래 당사자가 아니면 약속을 변경할 수 없다', () => {
