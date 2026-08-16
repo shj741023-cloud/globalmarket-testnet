@@ -1,0 +1,6 @@
+.site-footer{display:flex;justify-content:center;gap:20px;padding:28px 18px;color:#64736d;font-size:13px}
+.site-footer a,.policy-page a{color:#1f6b4f}
+.policy-page{max-width:760px;padding-top:48px}
+.policy-page h2{font-size:clamp(34px,7vw,56px);letter-spacing:-.04em;margin-bottom:28px}
+.policy-page h3{margin-top:30px}
+.policy-page>p{color:#64736d}
