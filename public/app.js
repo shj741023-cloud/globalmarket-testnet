@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, products: [], categories: [], selectedProduct: null, room: null, agreement: null, trade: null, payment: null, activeRoom: null };
+const state = { user: null, sessionToken: null, products: [], categories: [], selectedProduct: null, editingProduct: null, room: null, agreement: null, trade: null, payment: null, activeRoom: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
@@ -75,6 +75,7 @@ async function loadCategories() {
   const { items } = await api('/api/v1/categories');
   state.categories = items;
   $('productCategory').innerHTML = '<option value="">카테고리 선택</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
+  $('editProductCategory').innerHTML = '<option value="">카테고리 선택</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
   $('searchCategory').innerHTML = '<option value="">전체 카테고리</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
 }
 
@@ -149,6 +150,57 @@ async function loginPi() {
 
 const statusNames = { available: '판매중', paused: '판매중지', under_review: '검토중', reserved: '예약중', sold: '판매완료', payment_pending: '결제대기', shipping_pending: '발송대기', shipping: '배송중', delivered: '배송완료', purchase_confirmed: '구매확정', completed: '거래완료', cancelled: '취소', disputed: '분쟁중', refunded: '환불' };
 
+function openProductEdit(product) {
+  state.editingProduct = product;
+  $('editProductTitle').value = product.title;
+  $('editProductDescription').value = product.description;
+  $('editProductPrice').value = product.price;
+  $('editProductCategory').value = product.categoryId;
+  $('editProductRegion').value = product.region || '';
+  $('editMethodDirect').checked = product.methods.includes('direct');
+  $('editMethodParcel').checked = product.methods.includes('parcel_testnet');
+  $('editProductImage').value = '';
+  $('editProductResult').textContent = '';
+  const images = productImages(product);
+  $('editProductImages').innerHTML = images.length
+    ? images.map((image, index) => `<img src="${image}" alt="현재 상품 사진 ${index + 1}">`).join('')
+    : '<p class="empty">현재 등록된 사진이 없습니다.</p>';
+  $('editProductPanel').classList.remove('hidden');
+  $('editProductPanel').scrollIntoView({ behavior: 'smooth' });
+}
+
+function closeProductEdit() {
+  state.editingProduct = null;
+  $('editProductPanel').classList.add('hidden');
+  $('editProductForm').reset();
+  $('editProductImages').innerHTML = '';
+}
+
+async function saveProductEdit(event) {
+  event.preventDefault();
+  const product = state.editingProduct;
+  if (!product) return;
+  const methods = [];
+  if ($('editMethodDirect').checked) methods.push('direct');
+  if ($('editMethodParcel').checked) methods.push('parcel_testnet');
+  try {
+    $('editProductResult').textContent = '수정 내용을 확인하고 있습니다.';
+    const body = {
+      title: $('editProductTitle').value,
+      description: $('editProductDescription').value,
+      price: Number($('editProductPrice').value),
+      categoryId: $('editProductCategory').value,
+      region: $('editProductRegion').value,
+      methods
+    };
+    if ($('editProductImage').files.length) body.images = await compressProductImages($('editProductImage').files);
+    const { product: updated } = await api(`/api/v1/products/${product.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+    $('editProductResult').textContent = updated.status === 'under_review' ? '수정 내용이 검토 상태로 접수됐습니다.' : '상품 정보가 수정됐습니다.';
+    await Promise.all([loadMyProducts(), loadProducts()]);
+    setTimeout(closeProductEdit, 700);
+  } catch (error) { $('editProductResult').textContent = error.message; }
+}
+
 async function loadMyProducts() {
   const { items } = await api('/api/v1/me/products');
   $('myProducts').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(statusNames[item.status] || item.status)}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><div class="card-actions">${!['reserved', 'sold'].includes(item.status) ? `<button data-edit-product="${escapeHtml(item.id)}">수정</button>` : ''}${['available', 'paused'].includes(item.status) ? `<button data-product-status="${escapeHtml(item.id)}" data-next-status="${item.status === 'available' ? 'paused' : 'available'}">${item.status === 'available' ? '판매중지' : '판매재개'}</button>` : ''}</div></article>`).join('') : '<p class="empty">등록한 상품이 없습니다.</p>';
@@ -157,10 +209,7 @@ async function loadMyProducts() {
   }));
   document.querySelectorAll('[data-edit-product]').forEach((button) => button.addEventListener('click', async () => {
     const product = items.find((item) => item.id === button.dataset.editProduct); if (!product) return;
-    const title = prompt('상품명', product.title); if (title === null) return;
-    const description = prompt('상품 설명', product.description); if (description === null) return;
-    const price = prompt('가격(Test-Pi)', product.price); if (price === null) return;
-    try { await api(`/api/v1/products/${product.id}`, { method: 'PATCH', body: JSON.stringify({ title, description, price: Number(price) }) }); await Promise.all([loadMyProducts(), loadProducts()]); } catch (error) { alert(error.message); }
+    openProductEdit(product);
   }));
 }
 
@@ -262,7 +311,7 @@ async function health() {
   catch { $('health').textContent = '서버 오류'; }
 }
 
-async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.sessionToken = null; state.activeRoom = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); ['myPanel', 'chatPanel', 'registerPanel'].forEach((id) => $(id).classList.add('hidden')); }
+async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
 
 $('piLogin').addEventListener('click', () => loginPi().catch((error) => alert(error.message)));
 $('logout').addEventListener('click', () => logout().catch((error) => alert(error.message)));
@@ -283,6 +332,8 @@ $('navRegister').addEventListener('click', () => { if (!state.user) return alert
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('chatPanel').classList.remove('hidden'); loadChats().then(() => $('chatPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('myPanel').classList.remove('hidden'); loadMyMarket().then(() => $('myPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('productForm').addEventListener('submit', registerProduct);
+$('editProductForm').addEventListener('submit', saveProductEdit);
+$('cancelProductEdit').addEventListener('click', closeProductEdit);
 $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch((error) => alert(error.message)));
 $('refreshChats').addEventListener('click', () => loadChats().catch((error) => alert(error.message)));
 health(); loadProducts(); loadCategories();

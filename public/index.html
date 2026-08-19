@@ -90,6 +90,22 @@
       </form>
     </section>
 
+    <section id="editProductPanel" class="panel hidden">
+      <div class="section-title"><div><p class="eyebrow">EDIT TEST ITEM</p><h2>상품 정보 수정</h2></div><button id="cancelProductEdit" class="secondary" type="button">수정 취소</button></div>
+      <p class="form-notice">새 사진을 선택하지 않으면 현재 사진이 유지됩니다. 제한품목으로 의심되는 내용은 검토 상태로 전환될 수 있습니다.</p>
+      <div id="editProductImages" class="edit-product-images"></div>
+      <form id="editProductForm" class="product-form">
+        <label>상품명<input id="editProductTitle" minlength="2" maxlength="80" required></label>
+        <label>설명<textarea id="editProductDescription" minlength="10" maxlength="2000" required></textarea></label>
+        <label>사진 교체(선택·최대 3장)<input id="editProductImage" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>새 사진을 선택하면 기존 사진 전체가 교체됩니다.</small></label>
+        <div class="form-row"><label>가격(Test-Pi)<input id="editProductPrice" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="editProductCategory" required></select></label></div>
+        <label>거래 지역<input id="editProductRegion" maxlength="60"></label>
+        <fieldset><legend>거래방식</legend><label class="check"><input id="editMethodDirect" type="checkbox"> 직거래(당사자 책임)</label><label class="check"><input id="editMethodParcel" type="checkbox"> Testnet 택배</label></fieldset>
+        <button class="primary" type="submit">수정 내용 저장</button>
+        <p id="editProductResult" class="status" aria-live="polite"></p>
+      </form>
+    </section>
+
     <section id="chatPanel" class="hidden">
       <div class="section-title"><div><p class="eyebrow">MY CHATS</p><h2>내 채팅</h2></div><button id="refreshChats" class="secondary">새로고침</button></div>
       <div id="chatRooms" class="management-list"></div>

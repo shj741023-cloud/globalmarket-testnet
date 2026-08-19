@@ -18,6 +18,8 @@
 .product-detail-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 22px; }
 .product-detail-gallery img, .product-detail-gallery .empty-image { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 14px; background: linear-gradient(135deg,#bbd8c9,#e8efcf); }
 .product-detail-gallery .empty-image { display: grid; place-items: center; font-size: 42px; }
+.edit-product-images { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+.edit-product-images img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 14px; background: #edf3eb; }
 @media (max-width: 520px) { .product-detail-gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .product-form fieldset { display: flex; gap: 18px; border: 1px solid #d9ddd7; border-radius: 12px; padding: 12px; }
