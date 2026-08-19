@@ -36,12 +36,14 @@ const { publicProduct } = require('./lib/product-view');
 const { listFavoriteProductIds, addFavorite, removeFavorite } = require('./lib/favorites');
 const { assertReportTarget } = require('./lib/report-target');
 const { paginate } = require('./lib/pagination');
+const { RateLimiter } = require('./lib/rate-limit');
 
 assertTestnetEnvironment();
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const store = new Store(path.join(__dirname, 'data', 'testnet-db.json'));
+const rateLimiter = new RateLimiter();
 
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -56,7 +58,9 @@ function sendJson(res, status, data) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff'
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
   });
   res.end(JSON.stringify(data));
 }
@@ -83,6 +87,21 @@ function currentUserId(req) {
   const authorization = String(req.headers.authorization || '');
   const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
   return sessionUserIdFromToken(store.state, token);
+}
+
+function allowApiRequest(req, res, pathname) {
+  if (!['POST', 'PATCH', 'DELETE'].includes(req.method)) return true;
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const identity = currentUserId(req) || forwarded || req.socket.remoteAddress || 'unknown';
+  let bucket = 'write'; let limit = 120; let windowMs = 60_000;
+  if (pathname === '/api/v1/auth/pi') { bucket = 'auth'; limit = 10; windowMs = 5 * 60_000; }
+  else if (/\/messages$/.test(pathname)) { bucket = 'message'; limit = 30; }
+  const result = rateLimiter.consume(`${bucket}:${identity}`, limit, windowMs);
+  res.setHeader('X-RateLimit-Remaining', String(result.remaining));
+  if (result.allowed) return true;
+  res.setHeader('Retry-After', String(Math.ceil(result.retryAfterMs / 1000)));
+  apiError(res, 429, 'RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 다시 시도하세요.');
+  return false;
 }
 
 function requireUserId(req, res) {
@@ -162,6 +181,7 @@ async function handleApi(req, res, url) {
   const method = req.method;
   const pathname = url.pathname;
   let match;
+  if (!allowApiRequest(req, res, pathname)) return;
 
   if (method === 'GET' && pathname === '/api/v1/health') {
     return sendJson(res, 200, { ok: true, network: NETWORK, asset: ASSET, isSimulation: true, storage: store.backend });
@@ -754,7 +774,13 @@ function serveStatic(res, pathname) {
   if (!filePath.startsWith(PUBLIC_DIR) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
     res.writeHead(404); return res.end('Not found');
   }
-  res.writeHead(200, { 'Content-Type': contentTypes[path.extname(filePath)] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff' });
+  res.writeHead(200, {
+    'Content-Type': contentTypes[path.extname(filePath)] || 'application/octet-stream',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Cache-Control': path.extname(filePath) === '.html' ? 'no-cache' : 'public, max-age=300'
+  });
   fs.createReadStream(filePath).pipe(res);
 }
 
