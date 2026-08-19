@@ -22,7 +22,7 @@ const {
 } = require('./lib/workflow');
 const { refundQuote, decideDispute } = require('./lib/refunds');
 const { ensureProfile, applyTrustEvent, nextLevel } = require('./lib/trust');
-const { createSession, sessionUserId, sessionUserIdFromToken, revokeSession, sessionCookie, clearSessionCookie } = require('./lib/auth');
+const { createSession, pruneSessions, enforceSessionLimit, sessionUserId, sessionUserIdFromToken, revokeSession, sessionCookie, clearSessionCookie } = require('./lib/auth');
 const { CATEGORIES, validateProductInput, searchProducts, updateOwnedProduct, changeOwnedProductStatus } = require('./lib/products');
 const { assertParty, createProposal, respondProposal, createOrUpdateAgreement, confirmAgreement, tradeFromAgreement } = require('./lib/agreements');
 const { caseDeadlines, createReport, assignCase, decideCase, auditEntry } = require('./lib/operations');
@@ -228,7 +228,9 @@ async function handleApi(req, res, url) {
       user.username = piUser.username || user.username;
     }
     assertActiveUser(user);
+    pruneSessions(store.state);
     const { token, session } = createSession(store.state, user.id);
+    enforceSessionLimit(store.state, user.id);
     store.event('USER_AUTHENTICATED', user.id, { sessionId: session.id }); await store.save();
     res.setHeader('Set-Cookie', sessionCookie(token, req.headers['x-forwarded-proto'] === 'https'));
     return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username }, sessionToken: token, network: NETWORK });
@@ -238,7 +240,8 @@ async function handleApi(req, res, url) {
     let user = store.state.users.find((item) => item.piUid === 'demo-testnet-user');
     if (!user) { user = { id: store.id('user'), piUid: 'demo-testnet-user', username: 'Testnet Demo', status: 'active', createdAt: new Date().toISOString() }; store.state.users.push(user); }
     assertActiveUser(user);
-    const { token } = createSession(store.state, user.id); await store.save();
+    pruneSessions(store.state);
+    const { token } = createSession(store.state, user.id); enforceSessionLimit(store.state, user.id); await store.save();
     res.setHeader('Set-Cookie', sessionCookie(token, false));
     return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username }, demo: true });
   }
