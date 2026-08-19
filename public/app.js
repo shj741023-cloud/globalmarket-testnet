@@ -161,13 +161,28 @@ async function decideAdminReport(reportId) {
   } catch (error) { $('adminResult').textContent = error.message; }
 }
 
+const adminActionNames = { USER_STATUS_CHANGED: '회원 상태 변경', REPORT_ASSIGNED: '신고 담당 지정', REPORT_DECIDED: '신고 판정', DISPUTE_DECIDED: '분쟁 판정' };
+
+async function loadAdminAudit() {
+  const { items } = await adminApi('/api/v1/admin/audit-logs');
+  $('adminAudit').innerHTML = items.length ? items.map((item) => `
+    <article class="management-card admin-audit-card">
+      <div><strong>${escapeHtml(adminActionNames[item.action] || item.action)}</strong><p class="meta">${escapeHtml(new Date(item.createdAt).toLocaleString())} · ${escapeHtml(item.adminId)}</p></div>
+      <p>${escapeHtml(item.reason)}</p><p class="meta">${escapeHtml(item.targetType)} · ${escapeHtml(item.targetId)}</p>
+    </article>`).join('') : '<p class="empty">관리자 작업기록이 없습니다.</p>';
+  return items.length;
+}
+
 function showAdminSection(name) {
   const users = name === 'users';
+  const reports = name === 'reports';
   $('adminUsers').classList.toggle('hidden', !users);
-  $('adminReports').classList.toggle('hidden', users);
+  $('adminReports').classList.toggle('hidden', !reports);
+  $('adminAudit').classList.toggle('hidden', name !== 'audit');
   $('adminSearchForm').classList.toggle('hidden', !users);
   $('showAdminUsers').classList.toggle('active', users);
-  $('showAdminReports').classList.toggle('active', !users);
+  $('showAdminReports').classList.toggle('active', reports);
+  $('showAdminAudit').classList.toggle('active', name === 'audit');
 }
 
 function log(message, data) {
@@ -541,12 +556,13 @@ $('navRegister').addEventListener('click', () => { if (!state.user) return alert
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('chatPanel').classList.remove('hidden'); loadChats().then(() => $('chatPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('myPanel').classList.remove('hidden'); loadMyMarket().then(() => $('myPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('openAdmin').addEventListener('click', () => { $('adminPanel').classList.remove('hidden'); $('adminPanel').scrollIntoView({ behavior: 'smooth' }); });
-$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
+$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
 $('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { const [, reportCount] = await Promise.all([loadAdminUsers(), loadAdminReports()]); $('adminUnlockForm').classList.add('hidden'); $('adminWorkspace').classList.remove('hidden'); showAdminSection('users'); $('adminKey').value = ''; $('adminResult').textContent = `관리자 확인 완료 · 접수된 신고 ${reportCount}건`; } catch (error) { state.adminKey = null; $('adminResult').textContent = error.message; } });
 $('adminSearchForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await loadAdminUsers(); } catch (error) { $('adminResult').textContent = error.message; } });
 $('clearAdminSearch').addEventListener('click', () => { $('adminUserQuery').value = ''; $('adminUserStatus').value = ''; loadAdminUsers().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminUsers').addEventListener('click', () => showAdminSection('users'));
 $('showAdminReports').addEventListener('click', () => { showAdminSection('reports'); loadAdminReports().catch((error) => { $('adminResult').textContent = error.message; }); });
+$('showAdminAudit').addEventListener('click', () => { showAdminSection('audit'); loadAdminAudit().then((count) => { $('adminResult').textContent = `안전하게 정리된 작업기록 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('productForm').addEventListener('submit', registerProduct);
 $('productImage').addEventListener('change', () => prepareSelectedImages('productImage', 'registerProductImages', 'registerImages', 'registerResult'));
 $('editProductForm').addEventListener('submit', saveProductEdit);

@@ -43,6 +43,7 @@ const { createShutdownHandler } = require('./lib/shutdown');
 const { createRequestId } = require('./lib/request-id');
 const { changeUserStatus } = require('./lib/user-status');
 const { adminUserSummaries } = require('./lib/admin-users');
+const { adminAuditSummaries } = require('./lib/admin-audit');
 
 assertTestnetEnvironment();
 
@@ -796,7 +797,8 @@ async function handleApi(req, res, url) {
   }
   if (method === 'GET' && pathname === '/api/v1/admin/audit-logs') {
     if (!requireTestAdmin(req, res)) return;
-    return sendJson(res, 200, { ok: true, items: store.state.auditLogs.slice(-500).reverse() });
+    const query = Object.fromEntries(url.searchParams.entries());
+    return sendJson(res, 200, { ok: true, items: adminAuditSummaries(store.state, query), filters: query });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/users') {
     if (!requireTestAdmin(req, res)) return;
