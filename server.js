@@ -35,6 +35,7 @@ const { checklistTrade } = require('./lib/checklist');
 const { publicProduct } = require('./lib/product-view');
 const { listFavoriteProductIds, addFavorite, removeFavorite } = require('./lib/favorites');
 const { assertReportTarget } = require('./lib/report-target');
+const { paginate } = require('./lib/pagination');
 
 assertTestnetEnvironment();
 
@@ -212,8 +213,9 @@ async function handleApi(req, res, url) {
     const query = Object.fromEntries(url.searchParams.entries());
     const userId = currentUserId(req);
     const favoriteIds = new Set(userId ? listFavoriteProductIds(store.state.favorites, userId) : []);
-    const items = searchProducts(store.state.products, query).map((product) => ({ ...publicProduct(store.state, product), isFavorite: favoriteIds.has(product.id) }));
-    return sendJson(res, 200, { ok: true, items, filters: query });
+    const allItems = searchProducts(store.state.products, query).map((product) => ({ ...publicProduct(store.state, product), isFavorite: favoriteIds.has(product.id) }));
+    const page = paginate(allItems, query);
+    return sendJson(res, 200, { ok: true, items: page.items, pagination: { total: page.total, limit: page.limit, offset: page.offset, hasMore: page.hasMore }, filters: query });
   }
   if (method === 'GET' && pathname === '/api/v1/categories') {
     return sendJson(res, 200, { ok: true, items: CATEGORIES });

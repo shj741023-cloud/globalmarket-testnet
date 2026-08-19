@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, products: [], categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
+const state = { user: null, sessionToken: null, products: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
@@ -86,10 +86,16 @@ function renderQuote(quote) {
   ].map(([label,value]) => `<div><small>${label}</small><strong>${value}</strong></div>`).join('');
 }
 
-async function loadProducts(query = '') {
-  const { items } = await api(`/api/v1/products${query ? `?${query}` : ''}`);
-  state.products = items;
-  $('products').innerHTML = items.map((item) => `
+async function loadProducts(query = '', append = false) {
+  const params = new URLSearchParams(query);
+  params.set('limit', '20');
+  params.set('offset', append ? String(state.products.length) : '0');
+  const { items, pagination } = await api(`/api/v1/products?${params.toString()}`);
+  state.productQuery = query;
+  state.products = append ? [...state.products, ...items] : items;
+  state.productHasMore = Boolean(pagination?.hasMore);
+  $('loadMoreProducts').classList.toggle('hidden', !state.productHasMore);
+  $('products').innerHTML = state.products.map((item) => `
     <article class="product">
       <div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
       <h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p>
@@ -396,6 +402,7 @@ $('startProductTrade').addEventListener('click', () => { if (state.selectedProdu
 $('toggleFavorite').addEventListener('click', () => toggleFavorite().catch((error) => alert(error.message)));
 $('reportProduct').addEventListener('click', () => reportSelectedProduct().catch((error) => alert(error.message)));
 $('refresh').addEventListener('click', () => loadProducts().catch((error) => alert(error.message)));
+$('loadMoreProducts').addEventListener('click', () => loadProducts(state.productQuery, true).catch((error) => alert(error.message)));
 $('searchForm').addEventListener('submit', (event) => { event.preventDefault(); const params = new URLSearchParams(); [['q', 'searchKeyword'], ['categoryId', 'searchCategory'], ['method', 'searchMethod'], ['sort', 'searchSort'], ['minPrice', 'searchMin'], ['maxPrice', 'searchMax']].forEach(([key, id]) => { if ($(id).value) params.set(key, $(id).value); }); loadProducts(params.toString()).catch((error) => alert(error.message)); });
 $('clearSearch').addEventListener('click', () => { $('searchForm').reset(); loadProducts().catch((error) => alert(error.message)); });
 $('preparePayment').addEventListener('click', () => preparePayment().catch((error) => log(error.message)));
