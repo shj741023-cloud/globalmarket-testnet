@@ -41,6 +41,7 @@ const { isMutationOriginAllowed, assertActiveUser } = require('./lib/request-sec
 const { deploymentRevision } = require('./lib/runtime');
 const { createShutdownHandler } = require('./lib/shutdown');
 const { createRequestId } = require('./lib/request-id');
+const { changeUserStatus } = require('./lib/user-status');
 
 assertTestnetEnvironment();
 
@@ -715,6 +716,19 @@ async function handleApi(req, res, url) {
     });
     store.event('TRUST_VIOLATION_APPLIED', result.event.id); await store.save();
     return sendJson(res, 200, { ok: true, ...result });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/users\/([^/]+)\/status$/);
+  if (method === 'PATCH' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const user = store.state.users.find((item) => item.id === match[1]); if (!findOr404(res, user, 'user')) return;
+    const body = await readJson(req); const before = structuredClone(user);
+    const result = changeUserStatus(store.state, user.id, body.status, body.reason);
+    if (!result.idempotent) {
+      recordAudit(req, 'USER_STATUS_CHANGED', 'user', user.id, body.reason, before, user);
+      notify(user.id, 'user_status_changed', body.status === 'suspended' ? '계정 이용이 정지되었습니다' : '계정 이용이 복구되었습니다', body.reason, user.id);
+      await store.save();
+    }
+    return sendJson(res, 200, { ok: true, user: { id: user.id, status: user.status }, revokedSessions: result.revokedSessions, pausedProducts: result.pausedProducts, idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/refund-quote$/);
   if (method === 'POST' && match) {
