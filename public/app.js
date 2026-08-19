@@ -161,7 +161,7 @@ async function decideAdminReport(reportId) {
   } catch (error) { $('adminResult').textContent = error.message; }
 }
 
-const adminActionNames = { USER_STATUS_CHANGED: '회원 상태 변경', REPORT_ASSIGNED: '신고 담당 지정', REPORT_DECIDED: '신고 판정', DISPUTE_DECIDED: '분쟁 판정' };
+const adminActionNames = { USER_STATUS_CHANGED: '회원 상태 변경', PRODUCT_REVIEW_DECIDED: '상품 검토 판정', REPORT_ASSIGNED: '신고 담당 지정', REPORT_DECIDED: '신고 판정', DISPUTE_DECIDED: '분쟁 판정' };
 
 async function loadAdminAudit() {
   const { items } = await adminApi('/api/v1/admin/audit-logs');
@@ -213,16 +213,50 @@ async function decideAdminDispute(disputeId) {
   } catch (error) { $('adminResult').textContent = error.message; }
 }
 
+function renderAdminProducts(items) {
+  $('adminProducts').innerHTML = items.length ? items.map((item) => `
+    <article class="management-card admin-report-card">
+      ${item.images?.[0] ? `<img class="admin-review-image" src="${item.images[0]}" alt="${escapeHtml(item.title)} 검토 사진">` : ''}
+      <div><strong>${escapeHtml(item.title)}</strong><p class="meta">${escapeHtml(item.sellerUsername)} · ${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div>
+      <p>${escapeHtml(item.description)}</p>
+      <p class="meta">자동 검토 사유: ${(item.reviewReasons || []).map(escapeHtml).join(', ') || '상세 확인 필요'}</p>
+      <div class="actions"><button class="primary" data-product-review="${escapeHtml(item.id)}" data-product-decision="approve">판매 승인</button><button class="secondary danger-text" data-product-review="${escapeHtml(item.id)}" data-product-decision="reject">등록 거절</button></div>
+    </article>`).join('') : '<p class="empty">검토 대기 중인 상품이 없습니다.</p>';
+  $('adminProducts').querySelectorAll('[data-product-review]').forEach((button) => button.addEventListener('click', () => decideAdminProduct(button)));
+}
+
+async function loadAdminProducts() {
+  const { items } = await adminApi('/api/v1/admin/product-reviews');
+  renderAdminProducts(items);
+  return items.length;
+}
+
+async function decideAdminProduct(button) {
+  const decision = button.dataset.productDecision;
+  const action = decision === 'approve' ? '판매 승인' : '등록 거절';
+  const reason = prompt(`${action} 사유를 입력하세요. 판매자에게 안내됩니다.`);
+  if (!reason?.trim()) return;
+  if (!confirm(`이 상품을 ${action}할까요?`)) return;
+  try {
+    await adminApi(`/api/v1/admin/product-reviews/${encodeURIComponent(button.dataset.productReview)}/decision`, { method: 'POST', body: JSON.stringify({ decision, reason: reason.trim() }) });
+    $('adminResult').textContent = `상품을 ${action}했습니다.`;
+    await Promise.all([loadAdminProducts(), loadAdminAudit()]);
+  } catch (error) { $('adminResult').textContent = error.message; }
+}
+
 function showAdminSection(name) {
   const users = name === 'users';
+  const products = name === 'products';
   const reports = name === 'reports';
   const disputes = name === 'disputes';
   $('adminUsers').classList.toggle('hidden', !users);
+  $('adminProducts').classList.toggle('hidden', !products);
   $('adminReports').classList.toggle('hidden', !reports);
   $('adminDisputes').classList.toggle('hidden', !disputes);
   $('adminAudit').classList.toggle('hidden', name !== 'audit');
   $('adminSearchForm').classList.toggle('hidden', !users);
   $('showAdminUsers').classList.toggle('active', users);
+  $('showAdminProducts').classList.toggle('active', products);
   $('showAdminReports').classList.toggle('active', reports);
   $('showAdminDisputes').classList.toggle('active', disputes);
   $('showAdminAudit').classList.toggle('active', name === 'audit');
@@ -365,7 +399,7 @@ async function restoreSession() {
   }
 }
 
-const statusNames = { available: '판매중', paused: '판매중지', under_review: '검토중', reserved: '예약중', sold: '판매완료', payment_pending: '결제대기', shipping_pending: '발송대기', shipping: '배송중', delivered: '배송완료', purchase_confirmed: '구매확정', completed: '거래완료', cancelled: '취소', disputed: '분쟁중', refunded: '환불' };
+const statusNames = { available: '판매중', paused: '판매중지', under_review: '검토중', rejected: '등록거절', reserved: '예약중', sold: '판매완료', payment_pending: '결제대기', shipping_pending: '발송대기', shipping: '배송중', delivered: '배송완료', purchase_confirmed: '구매확정', completed: '거래완료', cancelled: '취소', disputed: '분쟁중', refunded: '환불' };
 
 function openProductEdit(product) {
   state.editingProduct = product;
@@ -599,11 +633,12 @@ $('navRegister').addEventListener('click', () => { if (!state.user) return alert
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('chatPanel').classList.remove('hidden'); loadChats().then(() => $('chatPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('myPanel').classList.remove('hidden'); loadMyMarket().then(() => $('myPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('openAdmin').addEventListener('click', () => { $('adminPanel').classList.remove('hidden'); $('adminPanel').scrollIntoView({ behavior: 'smooth' }); });
-$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
+$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminProducts').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
 $('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { const [, reportCount] = await Promise.all([loadAdminUsers(), loadAdminReports()]); $('adminUnlockForm').classList.add('hidden'); $('adminWorkspace').classList.remove('hidden'); showAdminSection('users'); $('adminKey').value = ''; $('adminResult').textContent = `관리자 확인 완료 · 접수된 신고 ${reportCount}건`; } catch (error) { state.adminKey = null; $('adminResult').textContent = error.message; } });
 $('adminSearchForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await loadAdminUsers(); } catch (error) { $('adminResult').textContent = error.message; } });
 $('clearAdminSearch').addEventListener('click', () => { $('adminUserQuery').value = ''; $('adminUserStatus').value = ''; loadAdminUsers().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminUsers').addEventListener('click', () => showAdminSection('users'));
+$('showAdminProducts').addEventListener('click', () => { showAdminSection('products'); loadAdminProducts().then((count) => { $('adminResult').textContent = `상품 검토 대기 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminReports').addEventListener('click', () => { showAdminSection('reports'); loadAdminReports().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminDisputes').addEventListener('click', () => { showAdminSection('disputes'); loadAdminDisputes().then((count) => { $('adminResult').textContent = `택배 안전거래 분쟁 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminAudit').addEventListener('click', () => { showAdminSection('audit'); loadAdminAudit().then((count) => { $('adminResult').textContent = `안전하게 정리된 작업기록 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });

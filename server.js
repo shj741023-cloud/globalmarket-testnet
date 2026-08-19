@@ -45,6 +45,7 @@ const { changeUserStatus } = require('./lib/user-status');
 const { adminUserSummaries } = require('./lib/admin-users');
 const { adminAuditSummaries } = require('./lib/admin-audit');
 const { adminDisputeSummaries } = require('./lib/admin-disputes');
+const { moderationQueue, moderateProduct } = require('./lib/product-moderation');
 
 assertTestnetEnvironment();
 
@@ -776,6 +777,21 @@ async function handleApi(req, res, url) {
     if (!requireTestAdmin(req, res)) return;
     const query = Object.fromEntries(url.searchParams.entries());
     return sendJson(res, 200, { ok: true, items: adminDisputeSummaries(store.state, query), filters: query });
+  }
+  if (method === 'GET' && pathname === '/api/v1/admin/product-reviews') {
+    if (!requireTestAdmin(req, res)) return;
+    return sendJson(res, 200, { ok: true, items: moderationQueue(store.state) });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/product-reviews\/([^/]+)\/decision$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
+    const body = await readJson(req); const before = structuredClone(product);
+    moderateProduct(product, body.decision, body.reason);
+    recordAudit(req, 'PRODUCT_REVIEW_DECIDED', 'product', product.id, body.reason, before, product);
+    notify(product.sellerId, 'product_review_decided', body.decision === 'approve' ? '상품 검토가 승인되었습니다' : '상품 등록이 거절되었습니다', body.reason, product.id);
+    store.event('PRODUCT_REVIEW_DECIDED', product.id, { decision: body.decision }); await store.save();
+    return sendJson(res, 200, { ok: true, product: { id: product.id, status: product.status, moderation: product.moderation } });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/reports') {
     if (!requireTestAdmin(req, res)) return;
