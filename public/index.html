@@ -53,6 +53,18 @@
       <div id="products" class="product-grid" aria-live="polite"></div>
     </section>
 
+    <section id="productDetailPanel" class="panel hidden">
+      <button id="closeProductDetail" class="secondary" type="button">상세 닫기</button>
+      <div id="productDetailGallery" class="product-detail-gallery"></div>
+      <p id="productDetailCategory" class="eyebrow"></p>
+      <h2 id="productDetailTitle"></h2>
+      <p id="productDetailPrice" class="price"></p>
+      <p id="productDetailDescription"></p>
+      <p id="productDetailMeta" class="meta"></p>
+      <div id="productDetailMethods" class="method-row"></div>
+      <button id="startProductTrade" class="primary" type="button">거래 방식 선택</button>
+    </section>
+
     <section id="myPanel" class="hidden">
       <div class="section-title"><div><p class="eyebrow">MY MARKET</p><h2>내 마켓</h2></div><button id="refreshMy" class="secondary">새로고침</button></div>
       <div id="trustSummary" class="trust-summary"></div>
@@ -69,7 +81,7 @@
       <form id="productForm" class="product-form">
         <label>상품명<input id="productTitle" name="title" minlength="2" maxlength="80" required></label>
         <label>설명<textarea id="productDescription" name="description" minlength="10" maxlength="2000" required></textarea></label>
-        <label>상품 사진(선택·1장)<input id="productImage" name="image" type="file" accept="image/jpeg,image/png,image/webp"><small>사진은 전송 전에 자동으로 축소됩니다. 실제 개인정보가 보이는 사진은 올리지 마세요.</small></label>
+        <label>상품 사진(선택·최대 3장)<input id="productImage" name="image" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>사진은 전송 전에 자동으로 축소됩니다. 실제 개인정보가 보이는 사진은 올리지 마세요.</small></label>
         <div class="form-row"><label>가격(Test-Pi)<input id="productPrice" name="price" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="productCategory" name="categoryId" required></select></label></div>
         <label>거래 지역<input id="productRegion" name="region" maxlength="60" placeholder="예: 서울 강남구"></label>
         <fieldset><legend>거래방식</legend><label class="check"><input id="methodDirect" type="checkbox" checked> 직거래(당사자 책임)</label><label class="check"><input id="methodParcel" type="checkbox" checked> Testnet 택배</label></fieldset>

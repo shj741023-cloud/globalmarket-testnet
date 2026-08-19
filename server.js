@@ -66,7 +66,7 @@ async function readJson(req) {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 1_000_000) throw Object.assign(new Error('Request too large'), { code: 'REQUEST_TOO_LARGE' });
+    if (size > 2_000_000) throw Object.assign(new Error('Request too large'), { code: 'REQUEST_TOO_LARGE' });
     chunks.push(chunk);
   }
   if (!chunks.length) return {};

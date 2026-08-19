@@ -1,9 +1,10 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, products: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
+const state = { user: null, sessionToken: null, products: [], categories: [], selectedProduct: null, room: null, agreement: null, trade: null, payment: null, activeRoom: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
+const productImages = (product) => (Array.isArray(product?.images) ? product.images : (product?.imageData ? [product.imageData] : [])).map(safeProductImage).filter(Boolean).slice(0, 3);
 
 async function compressProductImage(file) {
   if (!file) return null;
@@ -19,10 +20,16 @@ async function compressProductImage(file) {
     canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
     for (const quality of [0.82, 0.7, 0.58, 0.46]) {
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
-      if (blob && blob.size <= 330_000) return await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
+      if (blob && blob.size <= 250_000) return await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
     }
     throw new Error('사진을 더 작은 크기로 선택하세요.');
   } finally { URL.revokeObjectURL(sourceUrl); }
+}
+
+async function compressProductImages(files) {
+  const selected = [...files];
+  if (selected.length > 3) throw new Error('상품 사진은 최대 3장까지 선택할 수 있습니다.');
+  return Promise.all(selected.map(compressProductImage));
 }
 
 async function api(path, options = {}) {
@@ -55,19 +62,38 @@ async function loadProducts(query = '') {
   state.products = items;
   $('products').innerHTML = items.map((item) => `
     <article class="product">
-      <div class="image">${safeProductImage(item.imageData) ? `<img src="${item.imageData}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
+      <div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
       <h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p>
       <p class="meta">${escapeHtml(item.region)} · 기능시험용 가상 상품</p>
       <div class="method-row"><span class="tag">직거래</span><span class="tag">Testnet 택배</span></div>
-      <button data-product="${item.id}">거래 방식 선택</button>
+      <button data-product="${item.id}">상세 보기</button>
     </article>`).join('');
-  document.querySelectorAll('[data-product]').forEach((button) => button.addEventListener('click', () => chooseTrade(button.dataset.product)));
+  document.querySelectorAll('[data-product]').forEach((button) => button.addEventListener('click', () => openProductDetail(button.dataset.product)));
 }
 
 async function loadCategories() {
   const { items } = await api('/api/v1/categories');
+  state.categories = items;
   $('productCategory').innerHTML = '<option value="">카테고리 선택</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
   $('searchCategory').innerHTML = '<option value="">전체 카테고리</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
+}
+
+function openProductDetail(productId) {
+  const product = state.products.find((item) => item.id === productId);
+  if (!product) return;
+  state.selectedProduct = product;
+  const images = productImages(product);
+  $('productDetailGallery').innerHTML = images.length
+    ? images.map((image, index) => `<img src="${image}" alt="${escapeHtml(product.title)} 상품 사진 ${index + 1}">`).join('')
+    : '<div class="empty-image" aria-hidden="true">◉</div>';
+  $('productDetailCategory').textContent = state.categories.find((item) => item.id === product.categoryId)?.name || '실물 중고상품';
+  $('productDetailTitle').textContent = product.title;
+  $('productDetailPrice').textContent = `${product.price} Test-Pi`;
+  $('productDetailDescription').textContent = product.description;
+  $('productDetailMeta').textContent = `${product.region} · Testnet 기능시험 상품`;
+  $('productDetailMethods').innerHTML = product.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('');
+  $('productDetailPanel').classList.remove('hidden');
+  $('productDetailPanel').scrollIntoView({ behavior: 'smooth' });
 }
 
 async function registerProduct(event) {
@@ -78,8 +104,8 @@ async function registerProduct(event) {
   if ($('methodParcel').checked) methods.push('parcel_testnet');
   try {
     $('registerResult').textContent = '사진과 상품 정보를 준비하고 있습니다.';
-    const imageData = await compressProductImage($('productImage').files[0]);
-    const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods, imageData };
+    const images = await compressProductImages($('productImage').files);
+    const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods, images };
     const { product } = await api('/api/v1/products', { method: 'POST', body: JSON.stringify(body) });
     $('registerResult').textContent = product.status === 'under_review' ? '등록 내용이 검토 대상으로 접수됐습니다. 검토 전에는 공개되지 않습니다.' : '시험 상품이 등록됐습니다.';
     $('productForm').reset(); $('methodDirect').checked = true; $('methodParcel').checked = true;
@@ -241,6 +267,8 @@ async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); 
 $('piLogin').addEventListener('click', () => loginPi().catch((error) => alert(error.message)));
 $('logout').addEventListener('click', () => logout().catch((error) => alert(error.message)));
 $('checklistPayment').addEventListener('click', () => runChecklistPayment().catch((error) => alert(error.message)));
+$('closeProductDetail').addEventListener('click', () => { $('productDetailPanel').classList.add('hidden'); state.selectedProduct = null; });
+$('startProductTrade').addEventListener('click', () => { if (state.selectedProduct) chooseTrade(state.selectedProduct.id).catch((error) => alert(error.message)); });
 $('refresh').addEventListener('click', () => loadProducts().catch((error) => alert(error.message)));
 $('searchForm').addEventListener('submit', (event) => { event.preventDefault(); const params = new URLSearchParams(); [['q', 'searchKeyword'], ['categoryId', 'searchCategory'], ['method', 'searchMethod'], ['minPrice', 'searchMin'], ['maxPrice', 'searchMax']].forEach(([key, id]) => { if ($(id).value) params.set(key, $(id).value); }); loadProducts(params.toString()).catch((error) => alert(error.message)); });
 $('clearSearch').addEventListener('click', () => { $('searchForm').reset(); loadProducts().catch((error) => alert(error.message)); });

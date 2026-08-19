@@ -35,13 +35,19 @@ test('지원하지 않는 거래방식을 차단한다', () => {
 
 test('압축된 JPEG·PNG·WebP 상품 사진만 허용한다', () => {
   const imageData = 'data:image/jpeg;base64,AA==';
-  assert.equal(validateProductInput({ ...valid, imageData }).value.imageData, imageData);
+  assert.deepEqual(validateProductInput({ ...valid, imageData }).value.images, [imageData]);
   assert.throws(() => validateProductInput({ ...valid, imageData: 'data:text/html;base64,AA==' }), /상품 사진/);
 });
 
 test('과도하게 큰 상품 사진을 차단한다', () => {
-  const imageData = `data:image/jpeg;base64,${'A'.repeat(450_000)}`;
-  assert.throws(() => validateProductInput({ ...valid, imageData }), /330KB/);
+  const imageData = `data:image/jpeg;base64,${'A'.repeat(340_000)}`;
+  assert.throws(() => validateProductInput({ ...valid, imageData }), /250KB/);
+});
+
+test('상품 사진은 최대 3장까지만 허용한다', () => {
+  const imageData = 'data:image/jpeg;base64,AA==';
+  assert.equal(validateProductInput({ ...valid, images: [imageData, imageData, imageData] }).value.images.length, 3);
+  assert.throws(() => validateProductInput({ ...valid, images: [imageData, imageData, imageData, imageData] }), /최대 3장/);
 });
 
 test('금지·제한 품목 의심어는 자동 제재하지 않고 검토 대상으로 분류한다', () => {
