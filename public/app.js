@@ -3,6 +3,27 @@
 const state = { user: null, sessionToken: null, products: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
+
+async function compressProductImage(file) {
+  if (!file) return null;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('JPEG, PNG 또는 WebP 사진을 선택하세요.');
+  const sourceUrl = URL.createObjectURL(file);
+  const image = new Image();
+  try {
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('사진을 읽을 수 없습니다.')); image.src = sourceUrl; });
+    const scale = Math.min(1, 1200 / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.82, 0.7, 0.58, 0.46]) {
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+      if (blob && blob.size <= 330_000) return await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
+    }
+    throw new Error('사진을 더 작은 크기로 선택하세요.');
+  } finally { URL.revokeObjectURL(sourceUrl); }
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -34,7 +55,7 @@ async function loadProducts(query = '') {
   state.products = items;
   $('products').innerHTML = items.map((item) => `
     <article class="product">
-      <div class="image" aria-hidden="true">◉</div>
+      <div class="image">${safeProductImage(item.imageData) ? `<img src="${item.imageData}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
       <h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p>
       <p class="meta">${escapeHtml(item.region)} · 기능시험용 가상 상품</p>
       <div class="method-row"><span class="tag">직거래</span><span class="tag">Testnet 택배</span></div>
@@ -55,8 +76,10 @@ async function registerProduct(event) {
   const methods = [];
   if ($('methodDirect').checked) methods.push('direct');
   if ($('methodParcel').checked) methods.push('parcel_testnet');
-  const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods };
   try {
+    $('registerResult').textContent = '사진과 상품 정보를 준비하고 있습니다.';
+    const imageData = await compressProductImage($('productImage').files[0]);
+    const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods, imageData };
     const { product } = await api('/api/v1/products', { method: 'POST', body: JSON.stringify(body) });
     $('registerResult').textContent = product.status === 'under_review' ? '등록 내용이 검토 대상으로 접수됐습니다. 검토 전에는 공개되지 않습니다.' : '시험 상품이 등록됐습니다.';
     $('productForm').reset(); $('methodDirect').checked = true; $('methodParcel').checked = true;

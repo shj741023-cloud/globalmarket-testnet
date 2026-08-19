@@ -33,6 +33,17 @@ test('지원하지 않는 거래방식을 차단한다', () => {
   assert.throws(() => validateProductInput({ ...valid, methods: ['mainnet'] }), /거래방식/);
 });
 
+test('압축된 JPEG·PNG·WebP 상품 사진만 허용한다', () => {
+  const imageData = 'data:image/jpeg;base64,AA==';
+  assert.equal(validateProductInput({ ...valid, imageData }).value.imageData, imageData);
+  assert.throws(() => validateProductInput({ ...valid, imageData: 'data:text/html;base64,AA==' }), /상품 사진/);
+});
+
+test('과도하게 큰 상품 사진을 차단한다', () => {
+  const imageData = `data:image/jpeg;base64,${'A'.repeat(450_000)}`;
+  assert.throws(() => validateProductInput({ ...valid, imageData }), /330KB/);
+});
+
 test('금지·제한 품목 의심어는 자동 제재하지 않고 검토 대상으로 분류한다', () => {
   const result = validateProductInput({ ...valid, title: '미개봉 전자담배' });
   assert.equal(result.reviewRequired, true);
