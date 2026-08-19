@@ -217,7 +217,7 @@ async function handleApi(req, res, url) {
     }
     assertActiveUser(user);
     const { token, session } = createSession(store.state, user.id);
-    store.event('USER_AUTHENTICATED', user.id, { sessionId: session.id }); store.save();
+    store.event('USER_AUTHENTICATED', user.id, { sessionId: session.id }); await store.save();
     res.setHeader('Set-Cookie', sessionCookie(token, req.headers['x-forwarded-proto'] === 'https'));
     return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username }, sessionToken: token, network: NETWORK });
   }
@@ -226,7 +226,7 @@ async function handleApi(req, res, url) {
     let user = store.state.users.find((item) => item.piUid === 'demo-testnet-user');
     if (!user) { user = { id: store.id('user'), piUid: 'demo-testnet-user', username: 'Testnet Demo', status: 'active', createdAt: new Date().toISOString() }; store.state.users.push(user); }
     assertActiveUser(user);
-    const { token } = createSession(store.state, user.id); store.save();
+    const { token } = createSession(store.state, user.id); await store.save();
     res.setHeader('Set-Cookie', sessionCookie(token, false));
     return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username }, demo: true });
   }
@@ -236,7 +236,7 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username, status: user.status } });
   }
   if (method === 'POST' && pathname === '/api/v1/auth/logout') {
-    revokeSession(store.state, req.headers.cookie || ''); store.save();
+    revokeSession(store.state, req.headers.cookie || ''); await store.save();
     res.setHeader('Set-Cookie', clearSessionCookie(req.headers['x-forwarded-proto'] === 'https'));
     return sendJson(res, 200, { ok: true });
   }
@@ -266,13 +266,13 @@ async function handleApi(req, res, url) {
     const userId = requireUserId(req, res); if (!userId) return;
     const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
     const result = addFavorite(store.state.favorites, { id: store.id('favorite'), userId, productId: product.id });
-    if (!result.idempotent) store.save();
+    if (!result.idempotent) await store.save();
     return sendJson(res, result.idempotent ? 200 : 201, { ok: true, favorite: result.favorite, idempotent: result.idempotent });
   }
   if (match && method === 'DELETE') {
     const userId = requireUserId(req, res); if (!userId) return;
     const result = removeFavorite(store.state.favorites, userId, match[1]);
-    if (!result.idempotent) store.save();
+    if (!result.idempotent) await store.save();
     return sendJson(res, 200, { ok: true, ...result });
   }
   if (method === 'GET' && pathname === '/api/v1/me/trades') {
@@ -297,7 +297,7 @@ async function handleApi(req, res, url) {
   if (method === 'POST' && pathname === '/api/v1/testnet/checklist-trades') {
     const buyerId = requireUserId(req, res); if (!buyerId) return;
     const result = checklistTrade(store.state.trades, buyerId, { id: store.id('trade') });
-    if (!result.idempotent) { store.state.trades.push(result.trade); store.event('PI_CHECKLIST_TRADE_CREATED', result.trade.id); store.save(); }
+    if (!result.idempotent) { store.state.trades.push(result.trade); store.event('PI_CHECKLIST_TRADE_CREATED', result.trade.id); await store.save(); }
     return sendJson(res, result.idempotent ? 200 : 201, { ok: true, trade: result.trade, idempotent: result.idempotent });
   }
   if (method === 'GET' && pathname === '/api/v1/me/trust') {
@@ -325,7 +325,7 @@ async function handleApi(req, res, url) {
     const report = createReport({ id: store.id('report'), reporterId, targetType: body.targetType, targetId: body.targetId, reason: body.reason, complexity: body.complexity });
     store.state.reports.push(report);
     notify(reporterId, 'report_received', '신고가 접수되었습니다', `접수번호 ${report.id}`, report.id);
-    store.event('REPORT_RECEIVED', report.id); store.save();
+    store.event('REPORT_RECEIVED', report.id); await store.save();
     return sendJson(res, 201, { ok: true, report });
   }
   if (method === 'POST' && pathname === '/api/v1/products') {
@@ -340,7 +340,7 @@ async function handleApi(req, res, url) {
     };
     store.state.products.push(product);
     store.event(checked.reviewRequired ? 'PRODUCT_REVIEW_REQUESTED' : 'PRODUCT_CREATED', product.id, { reasons: checked.reviewReasons });
-    store.save();
+    await store.save();
     return sendJson(res, 201, { ok: true, product });
   }
   match = pathname.match(/^\/api\/v1\/products\/([^/]+)$/);
@@ -350,7 +350,7 @@ async function handleApi(req, res, url) {
     const before = { ...product }; const body = await readJson(req);
     updateOwnedProduct(product, sellerId, body);
     store.event('PRODUCT_UPDATED', product.id, { beforeStatus: before.status, afterStatus: product.status });
-    store.save(); return sendJson(res, 200, { ok: true, product });
+    await store.save(); return sendJson(res, 200, { ok: true, product });
   }
   match = pathname.match(/^\/api\/v1\/products\/([^/]+)\/status$/);
   if (method === 'PATCH' && match) {
@@ -359,7 +359,7 @@ async function handleApi(req, res, url) {
     const body = await readJson(req);
     const hasActiveTrade = store.state.trades.some((item) => item.productId === product.id && !['completed', 'cancelled', 'refunded'].includes(item.status));
     const result = changeOwnedProductStatus(product, sellerId, body.status, hasActiveTrade);
-    if (!result.idempotent) { store.event('PRODUCT_STATUS_CHANGED', product.id, { status: product.status }); store.save(); }
+    if (!result.idempotent) { store.event('PRODUCT_STATUS_CHANGED', product.id, { status: product.status }); await store.save(); }
     return sendJson(res, 200, { ok: true, product, idempotent: result.idempotent });
   }
   if (method === 'POST' && pathname === '/api/v1/trades') {
@@ -379,7 +379,7 @@ async function handleApi(req, res, url) {
       status: body.type === 'direct' ? 'meeting_agreed' : 'payment_pending',
       settlementHold: false, createdAt: new Date().toISOString()
     };
-    store.state.trades.push(trade); store.event('TRADE_CREATED', trade.id, { type: trade.type }); store.save();
+    store.state.trades.push(trade); store.event('TRADE_CREATED', trade.id, { type: trade.type }); await store.save();
     return sendJson(res, 201, { ok: true, trade });
   }
 
@@ -392,7 +392,7 @@ async function handleApi(req, res, url) {
     let room = store.state.chatRooms.find((item) => item.productId === product.id && item.buyerId === buyerId && item.status === 'active');
     if (room) return sendJson(res, 200, { ok: true, room, idempotent: true });
     room = { id: store.id('room'), productId: product.id, sellerId: product.sellerId, buyerId, status: 'active', createdAt: new Date().toISOString() };
-    store.state.chatRooms.push(room); store.event('CHAT_ROOM_CREATED', room.id); store.save();
+    store.state.chatRooms.push(room); store.event('CHAT_ROOM_CREATED', room.id); await store.save();
     return sendJson(res, 201, { ok: true, room });
   }
   match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)$/);
@@ -414,20 +414,20 @@ async function handleApi(req, res, url) {
     assertParty(room, senderId); const body = await readJson(req); const content = String(body.content || '').trim();
     if (!content || content.length > 1000) return apiError(res, 400, 'INVALID_MESSAGE', 'Message must be 1-1000 characters');
     const message = { id: store.id('message'), roomId: room.id, senderId, content, createdAt: new Date().toISOString() };
-    store.state.messages.push(message); store.save(); return sendJson(res, 201, { ok: true, message });
+    store.state.messages.push(message); await store.save(); return sendJson(res, 201, { ok: true, message });
   }
   match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)\/price-proposals$/);
   if (method === 'POST' && match) {
     const proposerId = requireUserId(req, res); if (!proposerId) return;
     const room = store.state.chatRooms.find((item) => item.id === match[1]); if (!findOr404(res, room, 'chat room')) return;
     const body = await readJson(req); const proposal = createProposal(room, { id: store.id('proposal'), proposerId, price: body.price });
-    store.state.priceProposals.push(proposal); store.save(); return sendJson(res, 201, { ok: true, proposal });
+    store.state.priceProposals.push(proposal); await store.save(); return sendJson(res, 201, { ok: true, proposal });
   }
   match = pathname.match(/^\/api\/v1\/price-proposals\/([^/]+)\/(accept|reject)$/);
   if (method === 'POST' && match) {
     const userId = requireUserId(req, res); if (!userId) return;
     const proposal = store.state.priceProposals.find((item) => item.id === match[1]); if (!findOr404(res, proposal, 'proposal')) return;
-    const result = respondProposal(proposal, userId, match[2] === 'accept' ? 'accepted' : 'rejected'); store.save();
+    const result = respondProposal(proposal, userId, match[2] === 'accept' ? 'accepted' : 'rejected'); await store.save();
     return sendJson(res, 200, { ok: true, proposal, idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)\/agreements$/);
@@ -438,14 +438,14 @@ async function handleApi(req, res, url) {
     const body = await readJson(req); let agreement = store.state.agreements.find((item) => item.roomId === room.id);
     const isNew = !agreement;
     agreement = createOrUpdateAgreement(agreement, room, product, { id: store.id('agreement'), actorId, price: body.price, type: body.type });
-    if (isNew) store.state.agreements.push(agreement); store.event('AGREEMENT_UPDATED', agreement.id, { version: agreement.version }); store.save();
+    if (isNew) store.state.agreements.push(agreement); store.event('AGREEMENT_UPDATED', agreement.id, { version: agreement.version }); await store.save();
     return sendJson(res, isNew ? 201 : 200, { ok: true, agreement });
   }
   match = pathname.match(/^\/api\/v1\/agreements\/([^/]+)\/confirm$/);
   if (method === 'POST' && match) {
     const userId = requireUserId(req, res); if (!userId) return;
     const agreement = store.state.agreements.find((item) => item.id === match[1]); if (!findOr404(res, agreement, 'agreement')) return;
-    const result = confirmAgreement(agreement, userId); store.save();
+    const result = confirmAgreement(agreement, userId); await store.save();
     return sendJson(res, 200, { ok: true, agreement, idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/agreements\/([^/]+)\/trades$/);
@@ -455,7 +455,7 @@ async function handleApi(req, res, url) {
     if (![agreement.sellerId, agreement.buyerId].includes(userId)) return apiError(res, 403, 'AGREEMENT_PARTY_REQUIRED', 'Agreement party required');
     const existing = store.state.trades.find((item) => item.agreementId === agreement.id);
     const result = tradeFromAgreement(agreement, existing, { id: store.id('trade') });
-    if (!result.idempotent) { store.state.trades.push(result.trade); store.event('TRADE_CREATED', result.trade.id, { agreementId: agreement.id }); store.save(); }
+    if (!result.idempotent) { store.state.trades.push(result.trade); store.event('TRADE_CREATED', result.trade.id, { agreementId: agreement.id }); await store.save(); }
     return sendJson(res, result.idempotent ? 200 : 201, { ok: true, trade: result.trade, idempotent: result.idempotent });
   }
 
@@ -479,7 +479,7 @@ async function handleApi(req, res, url) {
     const existing = store.state.directTradeRecords.find((item) => item.tradeId === trade.id);
     if (existing) return sendJson(res, 200, { ok: true, record: existing, idempotent: true });
     const body = await readJson(req); const record = createDirectRecord(trade, { ...body, userId });
-    store.state.directTradeRecords.push(record); store.event('DIRECT_SCHEDULE_CREATED', trade.id); store.save();
+    store.state.directTradeRecords.push(record); store.event('DIRECT_SCHEDULE_CREATED', trade.id); await store.save();
     return sendJson(res, 201, { ok: true, record });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/direct\/schedule$/);
@@ -488,7 +488,7 @@ async function handleApi(req, res, url) {
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
     const record = store.state.directTradeRecords.find((item) => item.tradeId === trade.id); if (!findOr404(res, record, 'direct record')) return;
     const body = await readJson(req); updateDirectSchedule(trade, record, { ...body, userId });
-    store.event('DIRECT_SCHEDULE_UPDATED', trade.id); store.save(); return sendJson(res, 200, { ok: true, record });
+    store.event('DIRECT_SCHEDULE_UPDATED', trade.id); await store.save(); return sendJson(res, 200, { ok: true, record });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/direct\/complete$/);
   if (method === 'POST' && match) {
@@ -502,7 +502,7 @@ async function handleApi(req, res, url) {
         userId: partyId, tradeId: trade.id, type: 'transaction_completed', reason: '직거래 양쪽 완료'
       });
     }
-    store.event('DIRECT_COMPLETION_MARKED', trade.id, { userId }); store.save();
+    store.event('DIRECT_COMPLETION_MARKED', trade.id, { userId }); await store.save();
     return sendJson(res, 200, { ok: true, trade, record, idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/direct\/cancel$/);
@@ -511,7 +511,7 @@ async function handleApi(req, res, url) {
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
     const record = store.state.directTradeRecords.find((item) => item.tradeId === trade.id); if (!findOr404(res, record, 'direct record')) return;
     const body = await readJson(req); const result = cancelDirect(trade, record, userId, body.reason);
-    store.event('DIRECT_CANCELED', trade.id, { userId }); store.save();
+    store.event('DIRECT_CANCELED', trade.id, { userId }); await store.save();
     return sendJson(res, 200, { ok: true, trade, record, idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/payment-quote$/);
@@ -528,7 +528,7 @@ async function handleApi(req, res, url) {
     const userId = requireUserId(req, res); if (!userId) return;
     if (userId !== trade.buyerId) return apiError(res, 403, 'BUYER_REQUIRED', 'Only the buyer can prepare payment');
     const result = preparePayment(trade, store.state.payments, { id: store.id('payment'), networkFee: 0 });
-    if (!result.idempotent) { store.state.payments.push(result.payment); store.event('PAYMENT_PREPARED', result.payment.id); store.save(); }
+    if (!result.idempotent) { store.state.payments.push(result.payment); store.event('PAYMENT_PREPARED', result.payment.id); await store.save(); }
     return sendJson(res, result.idempotent ? 200 : 201, { ok: true, payment: result.payment, idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/payments\/([^/]+)\/approve$/);
@@ -549,7 +549,7 @@ async function handleApi(req, res, url) {
       Object.assign(payment, beforeApproval);
       throw error;
     }
-    store.event('PAYMENT_APPROVED', payment.id, { simulatedProvider: Boolean(piResult.simulated) }); store.save();
+    store.event('PAYMENT_APPROVED', payment.id, { simulatedProvider: Boolean(piResult.simulated) }); await store.save();
     return sendJson(res, 200, { ok: true, payment, provider: piResult });
   }
   match = pathname.match(/^\/api\/v1\/payments\/([^/]+)\/complete$/);
@@ -567,7 +567,7 @@ async function handleApi(req, res, url) {
     const piResult = await callPi(`/v2/payments/${encodeURIComponent(payment.providerPaymentId)}/complete`, { txid: body.txid });
     const trade = paymentTrade;
     completePayment(payment, store.state.payments, trade, body.txid);
-    store.event('PAYMENT_COMPLETED', payment.id, { simulatedProvider: Boolean(piResult.simulated) }); store.save();
+    store.event('PAYMENT_COMPLETED', payment.id, { simulatedProvider: Boolean(piResult.simulated) }); await store.save();
     return sendJson(res, 200, { ok: true, payment, trade, provider: piResult });
   }
   if (method === 'GET' && pathname === '/api/v1/payments/incomplete') {
@@ -591,7 +591,7 @@ async function handleApi(req, res, url) {
       netAmount: quote.sellerExpectedSettlement, externalPayoutId: null,
       status: 'mock_completed', completedAt: new Date().toISOString()
     };
-    store.state.settlements.push(settlement); store.event('MOCK_SETTLEMENT_COMPLETED', settlement.id); store.save();
+    store.state.settlements.push(settlement); store.event('MOCK_SETTLEMENT_COMPLETED', settlement.id); await store.save();
     return sendJson(res, 201, { ok: true, settlement });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/shipment$/);
@@ -603,7 +603,7 @@ async function handleApi(req, res, url) {
     if (existing) return sendJson(res, 200, { ok: true, shipment: existing, idempotent: true });
     const body = await readJson(req);
     const shipment = registerShipment(trade, { ...body, id: store.id('shipment') });
-    store.state.shipments.push(shipment); store.event('SHIPMENT_REGISTERED', shipment.id); store.save();
+    store.state.shipments.push(shipment); store.event('SHIPMENT_REGISTERED', shipment.id); await store.save();
     return sendJson(res, 201, { ok: true, shipment, trade });
   }
   if (method === 'GET' && match) {
@@ -618,7 +618,7 @@ async function handleApi(req, res, url) {
     if (!requireTestAdmin(req, res)) return;
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
     const shipment = store.findShipmentByTrade(trade.id); if (!findOr404(res, shipment, 'shipment')) return;
-    markDelivered(trade, shipment); store.event('SHIPMENT_DELIVERED', shipment.id, { autoConfirmAt: shipment.autoConfirmAt }); store.save();
+    markDelivered(trade, shipment); store.event('SHIPMENT_DELIVERED', shipment.id, { autoConfirmAt: shipment.autoConfirmAt }); await store.save();
     return sendJson(res, 200, { ok: true, shipment, trade });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/confirm-purchase$/);
@@ -631,7 +631,7 @@ async function handleApi(req, res, url) {
       id: store.id('trust'), uniqueKey: `purchase_confirmed:${trade.id}:${trade.buyerId}`,
       userId: trade.buyerId, tradeId: trade.id, type: 'purchase_confirmed', reason: '구매자 직접 구매확정'
     });
-    store.event('PURCHASE_CONFIRMED', trade.id, { mode: 'buyer' }); store.save();
+    store.event('PURCHASE_CONFIRMED', trade.id, { mode: 'buyer' }); await store.save();
     return sendJson(res, 200, { ok: true, trade, idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/disputes$/);
@@ -645,7 +645,7 @@ async function handleApi(req, res, url) {
     if (!body.reason) return apiError(res, 400, 'DISPUTE_REASON_REQUIRED', 'reason is required');
     const dispute = openDispute(trade, { id: store.id('dispute'), applicantId: actor, reason: body.reason });
     Object.assign(dispute, caseDeadlines(dispute.createdAt, body.complexity));
-    store.state.disputes.push(dispute); store.event('DISPUTE_OPENED', dispute.id); store.save();
+    store.state.disputes.push(dispute); store.event('DISPUTE_OPENED', dispute.id); await store.save();
     return sendJson(res, 201, { ok: true, dispute, trade });
   }
   if (method === 'POST' && pathname === '/api/v1/internal/auto-confirm') {
@@ -663,7 +663,7 @@ async function handleApi(req, res, url) {
         confirmed.push(trade.id);
       }
     }
-    if (confirmed.length) store.save();
+    if (confirmed.length) await store.save();
     return sendJson(res, 200, { ok: true, confirmedTradeIds: confirmed });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/reviews$/);
@@ -689,7 +689,7 @@ async function handleApi(req, res, url) {
         userId: targetUserId, tradeId: trade.id, type: 'positive_review', reason: '긍정 후기'
       });
     }
-    store.event('REVIEW_CREATED', review.id); store.save();
+    store.event('REVIEW_CREATED', review.id); await store.save();
     return sendJson(res, 201, { ok: true, review, targetTrust: ensureProfile(store.state, targetUserId) });
   }
   match = pathname.match(/^\/api\/v1\/admin\/users\/([^/]+)\/trust-violations$/);
@@ -702,7 +702,7 @@ async function handleApi(req, res, url) {
       userId: match[1], type: 'confirmed_violation', penalty: body.penalty,
       reason: body.reason, options: { majorViolation: Number(body.penalty) >= 15 }
     });
-    store.event('TRUST_VIOLATION_APPLIED', result.event.id); store.save();
+    store.event('TRUST_VIOLATION_APPLIED', result.event.id); await store.save();
     return sendJson(res, 200, { ok: true, ...result });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/refund-quote$/);
@@ -738,7 +738,7 @@ async function handleApi(req, res, url) {
     }
     recordAudit(req, 'DISPUTE_DECIDED', 'dispute', dispute.id, body.reason, before, dispute);
     notify(dispute.applicantId, 'dispute_decided', '분쟁 판정이 완료되었습니다', body.reason, dispute.id);
-    store.event('DISPUTE_DECIDED', dispute.id, { type: body.type, refundId: refund?.id || null }); store.save();
+    store.event('DISPUTE_DECIDED', dispute.id, { type: body.type, refundId: refund?.id || null }); await store.save();
     return sendJson(res, 200, { ok: true, dispute, trade, refund });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/reports') {
@@ -752,7 +752,7 @@ async function handleApi(req, res, url) {
     const body = await readJson(req); const adminId = body.adminId || testAdminId(req); const before = structuredClone(report);
     const result = assignCase(report, adminId);
     recordAudit(req, 'REPORT_ASSIGNED', 'report', report.id, body.reason || '담당자 배정', before, report);
-    store.save(); return sendJson(res, 200, { ok: true, report, idempotent: result.idempotent });
+    await store.save(); return sendJson(res, 200, { ok: true, report, idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/admin\/reports\/([^/]+)\/decision$/);
   if (method === 'POST' && match) {
@@ -763,7 +763,7 @@ async function handleApi(req, res, url) {
     const result = decideCase(report, { ...body, adminId: testAdminId(req) });
     recordAudit(req, 'REPORT_DECIDED', 'report', report.id, body.reason, before, report);
     notify(report.reporterId, 'report_decided', '신고 처리결과가 등록되었습니다', body.reason, report.id);
-    store.save(); return sendJson(res, 200, { ok: true, report, idempotent: result.idempotent });
+    await store.save(); return sendJson(res, 200, { ok: true, report, idempotent: result.idempotent });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/audit-logs') {
     if (!requireTestAdmin(req, res)) return;
@@ -774,7 +774,7 @@ async function handleApi(req, res, url) {
     const userId = requireUserId(req, res); if (!userId) return;
     const item = store.state.notifications.find((entry) => entry.id === match[1] && entry.userId === userId);
     if (!findOr404(res, item, 'notification')) return;
-    item.readAt ||= new Date().toISOString(); store.save(); return sendJson(res, 200, { ok: true, notification: item });
+    item.readAt ||= new Date().toISOString(); await store.save(); return sendJson(res, 200, { ok: true, notification: item });
   }
   return apiError(res, 404, 'ROUTE_NOT_FOUND', 'API route not found');
 }
