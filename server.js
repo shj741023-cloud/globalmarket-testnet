@@ -46,6 +46,7 @@ const { adminUserSummaries } = require('./lib/admin-users');
 const { adminAuditSummaries } = require('./lib/admin-audit');
 const { adminDisputeSummaries } = require('./lib/admin-disputes');
 const { moderationQueue, moderateProduct } = require('./lib/product-moderation');
+const { adminDashboardSummary } = require('./lib/admin-dashboard');
 
 assertTestnetEnvironment();
 
@@ -781,6 +782,10 @@ async function handleApi(req, res, url) {
   if (method === 'GET' && pathname === '/api/v1/admin/product-reviews') {
     if (!requireTestAdmin(req, res)) return;
     return sendJson(res, 200, { ok: true, items: moderationQueue(store.state) });
+  }
+  if (method === 'GET' && pathname === '/api/v1/admin/dashboard') {
+    if (!requireTestAdmin(req, res)) return;
+    return sendJson(res, 200, { ok: true, summary: adminDashboardSummary(store.state) });
   }
   match = pathname.match(/^\/api\/v1\/admin\/product-reviews\/([^/]+)\/decision$/);
   if (method === 'POST' && match) {

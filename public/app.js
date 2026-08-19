@@ -244,6 +244,21 @@ async function decideAdminProduct(button) {
   } catch (error) { $('adminResult').textContent = error.message; }
 }
 
+async function loadAdminDashboard() {
+  const { summary } = await adminApi('/api/v1/admin/dashboard');
+  const cards = [
+    ['users', summary.users.total, `회원 · 정지 ${summary.users.suspended}`],
+    ['products', summary.products.reviewPending, '상품 검토 대기'],
+    ['reports', summary.reports.open, '미처리 신고'],
+    ['disputes', summary.disputes.open, '미처리 분쟁']
+  ];
+  $('adminDashboard').innerHTML = cards.map(([section, count, label]) => `<button type="button" data-admin-go="${section}"><strong>${escapeHtml(count)}</strong><small>${escapeHtml(label)}</small></button>`).join('');
+  $('adminDashboard').querySelectorAll('[data-admin-go]').forEach((button) => button.addEventListener('click', () => {
+    const targets = { users: 'showAdminUsers', products: 'showAdminProducts', reports: 'showAdminReports', disputes: 'showAdminDisputes' };
+    $(targets[button.dataset.adminGo]).click();
+  }));
+}
+
 function showAdminSection(name) {
   const users = name === 'users';
   const products = name === 'products';
@@ -260,6 +275,7 @@ function showAdminSection(name) {
   $('showAdminReports').classList.toggle('active', reports);
   $('showAdminDisputes').classList.toggle('active', disputes);
   $('showAdminAudit').classList.toggle('active', name === 'audit');
+  if (state.adminKey) loadAdminDashboard().catch((error) => { $('adminResult').textContent = error.message; });
 }
 
 function log(message, data) {
