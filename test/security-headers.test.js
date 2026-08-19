@@ -9,6 +9,7 @@ test('콘텐츠 보안 정책은 자체 자원과 공식 Pi 도메인만 허용�
   assert.match(CONTENT_SECURITY_POLICY, /img-src 'self' data:/);
   assert.match(CONTENT_SECURITY_POLICY, /object-src 'none'/);
   assert.doesNotMatch(CONTENT_SECURITY_POLICY, /unsafe-inline|unsafe-eval/);
+  assert.doesNotMatch(CONTENT_SECURITY_POLICY, /frame-ancestors/);
 });
 
 test('모든 응답에 기본 보안 헤더를 제공한다', () => {
