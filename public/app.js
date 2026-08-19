@@ -186,10 +186,33 @@ async function loginPi() {
     log('미완료 Test-Pi 결제 발견', payment);
   });
   const session = await api('/api/v1/auth/pi', { method: 'POST', body: JSON.stringify({ accessToken: auth.accessToken }) });
-  state.user = session.user; state.sessionToken = session.sessionToken; $('authState').textContent = `${session.user.username || session.user.id} · 서버 검증 완료`;
-  $('piLogin').classList.add('hidden'); $('logout').classList.remove('hidden');
-  $('checklistPayment').classList.remove('hidden');
+  state.sessionToken = session.sessionToken;
+  applyAuthenticatedUser(session.user, '서버 검증 완료');
   await loadMyMarket();
+}
+
+function applyAuthenticatedUser(user, message = '로그인 유지 중') {
+  state.user = user;
+  $('authState').textContent = `${user.username || user.id} · ${message}`;
+  $('piLogin').classList.add('hidden');
+  $('logout').classList.remove('hidden');
+  $('checklistPayment').classList.remove('hidden');
+}
+
+async function restoreSession() {
+  $('authState').textContent = '로그인 상태 확인 중';
+  try {
+    const { user } = await api('/api/v1/me');
+    applyAuthenticatedUser(user);
+    await loadMyMarket();
+  } catch {
+    state.user = null;
+    state.sessionToken = null;
+    $('authState').textContent = '로그인 전 · Pi Testnet 로그인이 필요합니다.';
+    $('piLogin').classList.remove('hidden');
+    $('logout').classList.add('hidden');
+    $('checklistPayment').classList.add('hidden');
+  }
 }
 
 const statusNames = { available: '판매중', paused: '판매중지', under_review: '검토중', reserved: '예약중', sold: '판매완료', payment_pending: '결제대기', shipping_pending: '발송대기', shipping: '배송중', delivered: '배송완료', purchase_confirmed: '구매확정', completed: '거래완료', cancelled: '취소', disputed: '분쟁중', refunded: '환불' };
@@ -432,4 +455,4 @@ $('editProductImage').addEventListener('change', () => prepareSelectedImages('ed
 $('cancelProductEdit').addEventListener('click', closeProductEdit);
 $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch((error) => alert(error.message)));
 $('refreshChats').addEventListener('click', () => loadChats().catch((error) => alert(error.message)));
-health(); loadProducts(); loadCategories();
+health(); loadProducts(); loadCategories(); restoreSession();
