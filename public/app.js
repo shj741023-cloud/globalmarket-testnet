@@ -94,6 +94,7 @@ async function loadProducts(query = '') {
       <div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
       <h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p>
       <p class="meta">${escapeHtml(item.region)} · 기능시험용 가상 상품</p>
+      <p class="seller-line">${escapeHtml(item.seller?.username || 'Pi 사용자')} · ${escapeHtml(item.seller?.trustLevel || 'Bronze')}</p>
       <div class="method-row"><span class="tag">직거래</span><span class="tag">Testnet 택배</span></div>
       <button data-product="${item.id}">상세 보기</button>
     </article>`).join('');
@@ -121,7 +122,9 @@ function openProductDetail(productId) {
   $('productDetailPrice').textContent = `${product.price} Test-Pi`;
   $('productDetailDescription').textContent = product.description;
   $('productDetailMeta').textContent = `${product.region} · Testnet 기능시험 상품`;
+  $('productDetailSeller').innerHTML = `<small>판매자</small><strong>${escapeHtml(product.seller?.username || 'Pi 사용자')}</strong><span>${escapeHtml(product.seller?.trustLevel || 'Bronze')} · 정상거래 ${escapeHtml(product.seller?.normalTradeCount || 0)}건</span>`;
   $('productDetailMethods').innerHTML = product.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('');
+  $('toggleFavorite').textContent = product.isFavorite ? '♥ 찜 해제' : '♡ 찜하기';
   $('productDetailPanel').classList.remove('hidden');
   $('productDetailPanel').scrollIntoView({ behavior: 'smooth' });
 }
@@ -247,6 +250,18 @@ async function loadMyTrades() {
   document.querySelectorAll('[data-trade-detail]').forEach((button) => button.addEventListener('click', () => openTradeDetail(button.dataset.tradeDetail).catch((error) => alert(error.message))));
 }
 
+async function loadMyFavorites() {
+  const { items } = await api('/api/v1/me/favorites');
+  $('myFavorites').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-favorite-product="${escapeHtml(item.id)}"><div><small>${escapeHtml(item.seller?.trustLevel || 'Bronze')} 판매자</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">찜한 상품이 없습니다.</p>';
+  document.querySelectorAll('[data-favorite-product]').forEach((button) => button.addEventListener('click', () => {
+    const product = items.find((item) => item.id === button.dataset.favoriteProduct);
+    if (!product) return;
+    const existing = state.products.findIndex((item) => item.id === product.id);
+    if (existing >= 0) state.products[existing] = product; else state.products.push(product);
+    openProductDetail(product.id);
+  }));
+}
+
 async function openTradeDetail(tradeId) {
   const detail = await api(`/api/v1/trades/${tradeId}`); const trade = detail.trade; state.trade = trade;
   $('tradeDetailContent').innerHTML = `<p class="eyebrow">${trade.myRole === 'buyer' ? 'PURCHASE' : 'SALE'}</p><h3>${escapeHtml(detail.product?.title || '상품정보 없음')}</h3><div class="detail-grid"><p><small>거래상태</small><strong>${escapeHtml(statusNames[trade.status] || trade.status)}</strong></p><p><small>거래금액</small><strong>${escapeHtml(trade.amount)} Test-Pi</strong></p><p><small>거래방식</small><strong>${trade.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p><small>정산보류</small><strong>${trade.settlementHold ? '보류중' : '없음'}</strong></p></div>`;
@@ -282,8 +297,23 @@ async function loadNotifications() {
   document.querySelectorAll('[data-notification]').forEach((button) => button.addEventListener('click', async () => { try { await api(`/api/v1/notifications/${button.dataset.notification}/read`, { method: 'POST' }); await loadNotifications(); } catch (error) { alert(error.message); } }));
 }
 async function loadTrust() { const { profile, nextLevel } = await api('/api/v1/me/trust'); $('trustSummary').innerHTML = `<div><small>신뢰등급</small><strong>${escapeHtml(profile.level)}</strong></div><div><small>신뢰점수</small><strong>${escapeHtml(profile.score)}점</strong></div><div><small>정상거래</small><strong>${escapeHtml(profile.completedTrades)}건</strong></div><div><small>다음등급</small><strong>${escapeHtml(nextLevel?.level || '최고등급')}</strong></div>`; }
-async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyTrades(), loadNotifications(), loadTrust()]); }
-function showManagement(type) { const products = type === 'products'; $('myProducts').classList.toggle('hidden', !products); $('myTrades').classList.toggle('hidden', products); $('showMyProducts').classList.toggle('active', products); $('showMyTrades').classList.toggle('active', !products); }
+async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadNotifications(), loadTrust()]); }
+function showManagement(type) {
+  for (const name of ['Products', 'Favorites', 'Trades']) {
+    const active = type === name.toLowerCase();
+    $(`my${name}`).classList.toggle('hidden', !active);
+    $(`showMy${name}`).classList.toggle('active', active);
+  }
+}
+
+async function toggleFavorite() {
+  if (!state.user) return alert('Pi Testnet 로그인 후 찜할 수 있습니다.');
+  const product = state.selectedProduct; if (!product) return;
+  await api(`/api/v1/products/${product.id}/favorite`, { method: product.isFavorite ? 'DELETE' : 'POST' });
+  product.isFavorite = !product.isFavorite;
+  $('toggleFavorite').textContent = product.isFavorite ? '♥ 찜 해제' : '♡ 찜하기';
+  await loadMyFavorites();
+}
 
 async function loadChats() {
   const { items } = await api('/api/v1/me/chat-rooms');
@@ -346,6 +376,7 @@ $('logout').addEventListener('click', () => logout().catch((error) => alert(erro
 $('checklistPayment').addEventListener('click', () => runChecklistPayment().catch((error) => alert(error.message)));
 $('closeProductDetail').addEventListener('click', () => { $('productDetailPanel').classList.add('hidden'); state.selectedProduct = null; });
 $('startProductTrade').addEventListener('click', () => { if (state.selectedProduct) chooseTrade(state.selectedProduct.id).catch((error) => alert(error.message)); });
+$('toggleFavorite').addEventListener('click', () => toggleFavorite().catch((error) => alert(error.message)));
 $('refresh').addEventListener('click', () => loadProducts().catch((error) => alert(error.message)));
 $('searchForm').addEventListener('submit', (event) => { event.preventDefault(); const params = new URLSearchParams(); [['q', 'searchKeyword'], ['categoryId', 'searchCategory'], ['method', 'searchMethod'], ['minPrice', 'searchMin'], ['maxPrice', 'searchMax']].forEach(([key, id]) => { if ($(id).value) params.set(key, $(id).value); }); loadProducts(params.toString()).catch((error) => alert(error.message)); });
 $('clearSearch').addEventListener('click', () => { $('searchForm').reset(); loadProducts().catch((error) => alert(error.message)); });
@@ -353,6 +384,7 @@ $('preparePayment').addEventListener('click', () => preparePayment().catch((erro
 $('mockComplete').addEventListener('click', () => log('구매확정·모의정산은 관리자 테스트 API 단계에서 수행합니다.'));
 $('refreshMy').addEventListener('click', () => loadMyMarket().catch((error) => alert(error.message)));
 $('showMyProducts').addEventListener('click', () => showManagement('products'));
+$('showMyFavorites').addEventListener('click', () => showManagement('favorites'));
 $('showMyTrades').addEventListener('click', () => showManagement('trades'));
 $('navHome').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 $('navSearch').addEventListener('click', () => $('products').scrollIntoView({ behavior: 'smooth' }));

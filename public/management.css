@@ -24,6 +24,10 @@
 .image-editor-item small { display: block; margin: 5px 0; color: #4e5e57; }
 .image-editor-item div { display: flex; gap: 4px; }
 .image-editor-item button { min-width: 0; flex: 1; padding: 7px 3px; font-size: 12px; }
+.seller-line { color: #356f5b; font-weight: 700; }
+.seller-summary { display: grid; gap: 3px; margin: 16px 0; padding: 14px; border-radius: 14px; background: #edf3eb; }
+.seller-summary small, .seller-summary span { color: #617069; }
+.seller-summary strong { font-size: 19px; }
 @media (max-width: 520px) {
   .product-detail-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; }
   .product-detail-gallery img, .product-detail-gallery .empty-image { flex: 0 0 88%; scroll-snap-align: start; }

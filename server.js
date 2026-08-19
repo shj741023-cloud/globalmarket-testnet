@@ -32,6 +32,8 @@ const { assertTradeParty, assertTradeBuyer, assertTradeSeller } = require('./lib
 const { listUserTrades, tradeSnapshot } = require('./lib/trade-view');
 const { listUserRooms } = require('./lib/chat-view');
 const { checklistTrade } = require('./lib/checklist');
+const { publicProduct } = require('./lib/product-view');
+const { listFavoriteProductIds, addFavorite, removeFavorite } = require('./lib/favorites');
 
 assertTestnetEnvironment();
 
@@ -207,7 +209,10 @@ async function handleApi(req, res, url) {
   }
   if (method === 'GET' && pathname === '/api/v1/products') {
     const query = Object.fromEntries(url.searchParams.entries());
-    return sendJson(res, 200, { ok: true, items: searchProducts(store.state.products, query), filters: query });
+    const userId = currentUserId(req);
+    const favoriteIds = new Set(userId ? listFavoriteProductIds(store.state.favorites, userId) : []);
+    const items = searchProducts(store.state.products, query).map((product) => ({ ...publicProduct(store.state, product), isFavorite: favoriteIds.has(product.id) }));
+    return sendJson(res, 200, { ok: true, items, filters: query });
   }
   if (method === 'GET' && pathname === '/api/v1/categories') {
     return sendJson(res, 200, { ok: true, items: CATEGORIES });
@@ -215,6 +220,26 @@ async function handleApi(req, res, url) {
   if (method === 'GET' && pathname === '/api/v1/me/products') {
     const sellerId = requireUserId(req, res); if (!sellerId) return;
     return sendJson(res, 200, { ok: true, items: store.state.products.filter((item) => item.sellerId === sellerId).slice().reverse() });
+  }
+  if (method === 'GET' && pathname === '/api/v1/me/favorites') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const favoriteIds = listFavoriteProductIds(store.state.favorites, userId);
+    const items = favoriteIds.map((id) => store.findProduct(id)).filter((product) => product && ['available', 'reserved'].includes(product.status)).map((product) => ({ ...publicProduct(store.state, product), isFavorite: true }));
+    return sendJson(res, 200, { ok: true, items });
+  }
+  match = pathname.match(/^\/api\/v1\/products\/([^/]+)\/favorite$/);
+  if (match && method === 'POST') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
+    const result = addFavorite(store.state.favorites, { id: store.id('favorite'), userId, productId: product.id });
+    if (!result.idempotent) store.save();
+    return sendJson(res, result.idempotent ? 200 : 201, { ok: true, favorite: result.favorite, idempotent: result.idempotent });
+  }
+  if (match && method === 'DELETE') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const result = removeFavorite(store.state.favorites, userId, match[1]);
+    if (!result.idempotent) store.save();
+    return sendJson(res, 200, { ok: true, ...result });
   }
   if (method === 'GET' && pathname === '/api/v1/me/trades') {
     const userId = requireUserId(req, res); if (!userId) return;
