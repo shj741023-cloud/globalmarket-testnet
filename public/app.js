@@ -117,6 +117,59 @@ async function changeAdminUserStatus(button) {
   } catch (error) { $('adminResult').textContent = error.message; }
 }
 
+const adminReportStatusNames = { received: '접수', reviewing: '검토 중', closed: '처리 완료' };
+const adminDecisionNames = { violation_confirmed: '위반 확인', no_violation: '위반 없음', insufficient_evidence: '증거 부족' };
+
+function renderAdminReports(items) {
+  $('adminReports').innerHTML = items.length ? [...items].reverse().map((report) => `
+    <article class="management-card admin-report-card">
+      <div><strong>${escapeHtml(report.targetType)} 신고</strong><p class="meta">${escapeHtml(report.id)} · ${escapeHtml(adminReportStatusNames[report.status] || report.status)}</p></div>
+      <p>${escapeHtml(report.reason)}</p><p class="meta">대상 ${escapeHtml(report.targetId)} · 접수 ${escapeHtml(new Date(report.createdAt).toLocaleString())}</p>
+      ${report.decision ? `<p class="admin-decision"><strong>${escapeHtml(adminDecisionNames[report.decision.type] || report.decision.type)}</strong> · ${escapeHtml(report.decision.reason)}</p>` : ''}
+      <div class="actions">
+        ${report.status === 'received' ? `<button class="secondary" data-report-assign="${escapeHtml(report.id)}">내가 검토</button>` : ''}
+        ${report.status === 'reviewing' ? `<select data-report-decision-type="${escapeHtml(report.id)}"><option value="violation_confirmed">위반 확인</option><option value="no_violation">위반 없음</option><option value="insufficient_evidence">증거 부족</option></select><button class="primary" data-report-decide="${escapeHtml(report.id)}">판정 저장</button>` : ''}
+      </div>
+    </article>`).join('') : '<p class="empty">접수된 신고가 없습니다.</p>';
+  $('adminReports').querySelectorAll('[data-report-assign]').forEach((button) => button.addEventListener('click', () => assignAdminReport(button.dataset.reportAssign)));
+  $('adminReports').querySelectorAll('[data-report-decide]').forEach((button) => button.addEventListener('click', () => decideAdminReport(button.dataset.reportDecide)));
+}
+
+async function loadAdminReports() {
+  const { items } = await adminApi('/api/v1/admin/reports');
+  renderAdminReports(items);
+  return items.length;
+}
+
+async function assignAdminReport(reportId) {
+  try {
+    await adminApi(`/api/v1/admin/reports/${encodeURIComponent(reportId)}/assign`, { method: 'POST', body: JSON.stringify({ reason: '웹 관리자 검토 시작' }) });
+    $('adminResult').textContent = '신고 검토를 시작했습니다. 내용을 확인하고 판정하세요.';
+    await loadAdminReports();
+  } catch (error) { $('adminResult').textContent = error.message; }
+}
+
+async function decideAdminReport(reportId) {
+  const type = [...document.querySelectorAll('[data-report-decision-type]')].find((item) => item.dataset.reportDecisionType === reportId)?.value;
+  const reason = prompt('판정 사유를 입력하세요. 신고자에게 안내됩니다.');
+  if (!reason?.trim() || !type) return;
+  if (!confirm(`${adminDecisionNames[type]}으로 처리할까요?`)) return;
+  try {
+    await adminApi(`/api/v1/admin/reports/${encodeURIComponent(reportId)}/decision`, { method: 'POST', body: JSON.stringify({ type, reason: reason.trim() }) });
+    $('adminResult').textContent = '신고 판정을 저장했습니다. 이 판정만으로 계정이 자동 정지되지는 않습니다.';
+    await loadAdminReports();
+  } catch (error) { $('adminResult').textContent = error.message; }
+}
+
+function showAdminSection(name) {
+  const users = name === 'users';
+  $('adminUsers').classList.toggle('hidden', !users);
+  $('adminReports').classList.toggle('hidden', users);
+  $('adminSearchForm').classList.toggle('hidden', !users);
+  $('showAdminUsers').classList.toggle('active', users);
+  $('showAdminReports').classList.toggle('active', !users);
+}
+
 function log(message, data) {
   $('log').textContent += `${new Date().toLocaleTimeString()} ${message}${data ? `\n${JSON.stringify(data, null, 2)}` : ''}\n`;
 }
@@ -488,10 +541,12 @@ $('navRegister').addEventListener('click', () => { if (!state.user) return alert
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('chatPanel').classList.remove('hidden'); loadChats().then(() => $('chatPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('myPanel').classList.remove('hidden'); loadMyMarket().then(() => $('myPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('openAdmin').addEventListener('click', () => { $('adminPanel').classList.remove('hidden'); $('adminPanel').scrollIntoView({ behavior: 'smooth' }); });
-$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminResult').textContent = ''; $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
-$('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { await loadAdminUsers(); $('adminUnlockForm').classList.add('hidden'); $('adminSearchForm').classList.remove('hidden'); $('adminKey').value = ''; } catch (error) { state.adminKey = null; $('adminResult').textContent = error.message; } });
+$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
+$('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { const [, reportCount] = await Promise.all([loadAdminUsers(), loadAdminReports()]); $('adminUnlockForm').classList.add('hidden'); $('adminWorkspace').classList.remove('hidden'); showAdminSection('users'); $('adminKey').value = ''; $('adminResult').textContent = `관리자 확인 완료 · 접수된 신고 ${reportCount}건`; } catch (error) { state.adminKey = null; $('adminResult').textContent = error.message; } });
 $('adminSearchForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await loadAdminUsers(); } catch (error) { $('adminResult').textContent = error.message; } });
 $('clearAdminSearch').addEventListener('click', () => { $('adminUserQuery').value = ''; $('adminUserStatus').value = ''; loadAdminUsers().catch((error) => { $('adminResult').textContent = error.message; }); });
+$('showAdminUsers').addEventListener('click', () => showAdminSection('users'));
+$('showAdminReports').addEventListener('click', () => { showAdminSection('reports'); loadAdminReports().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('productForm').addEventListener('submit', registerProduct);
 $('productImage').addEventListener('change', () => prepareSelectedImages('productImage', 'registerProductImages', 'registerImages', 'registerResult'));
 $('editProductForm').addEventListener('submit', saveProductEdit);
