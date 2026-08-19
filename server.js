@@ -196,6 +196,14 @@ async function handleApi(req, res, url) {
   if (method === 'GET' && pathname === '/api/v1/health') {
     return sendJson(res, 200, { ok: true, network: NETWORK, asset: ASSET, isSimulation: true, storage: store.backend, revision: deploymentRevision() });
   }
+  if (method === 'GET' && pathname === '/api/v1/ready') {
+    try {
+      const readiness = await store.readiness();
+      return sendJson(res, 200, { ok: true, storage: readiness.backend, revision: deploymentRevision() });
+    } catch {
+      return sendJson(res, 503, { ok: false, storage: store.backend, revision: deploymentRevision() });
+    }
+  }
   if (method === 'GET' && pathname === '/api/v1/config') {
     return sendJson(res, 200, {
       ok: true,
