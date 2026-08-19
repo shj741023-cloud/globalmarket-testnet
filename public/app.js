@@ -121,7 +121,7 @@ const adminReportStatusNames = { received: '접수', reviewing: '검토 중', cl
 const adminDecisionNames = { violation_confirmed: '위반 확인', no_violation: '위반 없음', insufficient_evidence: '증거 부족' };
 
 function renderAdminReports(items) {
-  $('adminReports').innerHTML = items.length ? [...items].reverse().map((report) => `
+  $('adminReports').innerHTML = items.length ? items.map((report) => `
     <article class="management-card admin-report-card">
       <div><strong>${escapeHtml(report.targetType)} 신고</strong><p class="meta">${escapeHtml(report.id)} · ${escapeHtml(adminReportStatusNames[report.status] || report.status)}</p></div>
       <p>${escapeHtml(report.reason)}</p><p class="meta">대상 ${escapeHtml(report.targetId)} · 접수 ${escapeHtml(new Date(report.createdAt).toLocaleString())}</p>

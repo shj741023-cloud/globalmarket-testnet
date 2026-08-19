@@ -48,6 +48,7 @@ const { adminDisputeSummaries } = require('./lib/admin-disputes');
 const { moderationQueue, moderateProduct } = require('./lib/product-moderation');
 const { adminDashboardSummary } = require('./lib/admin-dashboard');
 const { adminKeyMatches, requestIdentity } = require('./lib/admin-auth');
+const { adminReportSummary, adminReportSummaries } = require('./lib/admin-reports');
 
 assertTestnetEnvironment();
 
@@ -808,7 +809,8 @@ async function handleApi(req, res, url) {
   }
   if (method === 'GET' && pathname === '/api/v1/admin/reports') {
     if (!requireTestAdmin(req, res)) return;
-    return sendJson(res, 200, { ok: true, items: store.state.reports });
+    const query = Object.fromEntries(url.searchParams.entries());
+    return sendJson(res, 200, { ok: true, items: adminReportSummaries(store.state, query), filters: query });
   }
   match = pathname.match(/^\/api\/v1\/admin\/reports\/([^/]+)\/assign$/);
   if (method === 'POST' && match) {
@@ -817,18 +819,18 @@ async function handleApi(req, res, url) {
     const body = await readJson(req); const adminId = body.adminId || testAdminId(req); const before = structuredClone(report);
     const result = assignCase(report, adminId);
     recordAudit(req, 'REPORT_ASSIGNED', 'report', report.id, body.reason || '담당자 배정', before, report);
-    await store.save(); return sendJson(res, 200, { ok: true, report, idempotent: result.idempotent });
+    await store.save(); return sendJson(res, 200, { ok: true, report: adminReportSummary(report), idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/admin\/reports\/([^/]+)\/decision$/);
   if (method === 'POST' && match) {
     if (!requireTestAdmin(req, res)) return;
     const report = store.state.reports.find((item) => item.id === match[1]); if (!findOr404(res, report, 'report')) return;
-    if (report.status === 'closed') return sendJson(res, 200, { ok: true, report, idempotent: true });
+    if (report.status === 'closed') return sendJson(res, 200, { ok: true, report: adminReportSummary(report), idempotent: true });
     const body = await readJson(req); const before = structuredClone(report);
     const result = decideCase(report, { ...body, adminId: testAdminId(req) });
     recordAudit(req, 'REPORT_DECIDED', 'report', report.id, body.reason, before, report);
     notify(report.reporterId, 'report_decided', '신고 처리결과가 등록되었습니다', body.reason, report.id);
-    await store.save(); return sendJson(res, 200, { ok: true, report, idempotent: result.idempotent });
+    await store.save(); return sendJson(res, 200, { ok: true, report: adminReportSummary(report), idempotent: result.idempotent });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/audit-logs') {
     if (!requireTestAdmin(req, res)) return;
