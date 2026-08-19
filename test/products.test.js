@@ -74,6 +74,16 @@ test('검토중·판매완료 상품은 공개 검색에서 제외한다', () =>
   assert.equal(searchProducts(products, {}).length, 0);
 });
 
+test('상품을 최신순·낮은 가격순·높은 가격순으로 정렬한다', () => {
+  const products = [
+    { ...valid, id: 'old', price: 20, status: 'available', createdAt: '2026-01-01T00:00:00.000Z' },
+    { ...valid, id: 'new', price: 10, status: 'available', createdAt: '2026-01-02T00:00:00.000Z' }
+  ];
+  assert.deepEqual(searchProducts(products, {}).map((item) => item.id), ['new', 'old']);
+  assert.deepEqual(searchProducts(products, { sort: 'price_asc' }).map((item) => item.id), ['new', 'old']);
+  assert.deepEqual(searchProducts(products, { sort: 'price_desc' }).map((item) => item.id), ['old', 'new']);
+});
+
 test('판매자만 자신의 상품을 수정할 수 있다', () => {
   const product = { ...valid, sellerId: 'seller', status: 'available' };
   assert.throws(() => updateOwnedProduct(product, 'other', { price: 30 }), /본인 상품/);

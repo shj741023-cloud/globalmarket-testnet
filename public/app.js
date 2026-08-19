@@ -393,7 +393,7 @@ $('startProductTrade').addEventListener('click', () => { if (state.selectedProdu
 $('toggleFavorite').addEventListener('click', () => toggleFavorite().catch((error) => alert(error.message)));
 $('reportProduct').addEventListener('click', () => reportSelectedProduct().catch((error) => alert(error.message)));
 $('refresh').addEventListener('click', () => loadProducts().catch((error) => alert(error.message)));
-$('searchForm').addEventListener('submit', (event) => { event.preventDefault(); const params = new URLSearchParams(); [['q', 'searchKeyword'], ['categoryId', 'searchCategory'], ['method', 'searchMethod'], ['minPrice', 'searchMin'], ['maxPrice', 'searchMax']].forEach(([key, id]) => { if ($(id).value) params.set(key, $(id).value); }); loadProducts(params.toString()).catch((error) => alert(error.message)); });
+$('searchForm').addEventListener('submit', (event) => { event.preventDefault(); const params = new URLSearchParams(); [['q', 'searchKeyword'], ['categoryId', 'searchCategory'], ['method', 'searchMethod'], ['sort', 'searchSort'], ['minPrice', 'searchMin'], ['maxPrice', 'searchMax']].forEach(([key, id]) => { if ($(id).value) params.set(key, $(id).value); }); loadProducts(params.toString()).catch((error) => alert(error.message)); });
 $('clearSearch').addEventListener('click', () => { $('searchForm').reset(); loadProducts().catch((error) => alert(error.message)); });
 $('preparePayment').addEventListener('click', () => preparePayment().catch((error) => log(error.message)));
 $('mockComplete').addEventListener('click', () => log('구매확정·모의정산은 관리자 테스트 API 단계에서 수행합니다.'));
