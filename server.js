@@ -47,6 +47,7 @@ const { adminAuditSummaries } = require('./lib/admin-audit');
 const { adminDisputeSummaries } = require('./lib/admin-disputes');
 const { moderationQueue, moderateProduct } = require('./lib/product-moderation');
 const { adminDashboardSummary } = require('./lib/admin-dashboard');
+const { adminKeyMatches, requestIdentity } = require('./lib/admin-auth');
 
 assertTestnetEnvironment();
 
@@ -134,7 +135,14 @@ function requireTestAdmin(req, res) {
     apiError(res, 503, 'TEST_ADMIN_DISABLED', 'Set TEST_ADMIN_KEY to enable Testnet admin decisions');
     return false;
   }
-  if (req.headers['x-test-admin-key'] !== expected) {
+  if (!adminKeyMatches(req.headers['x-test-admin-key'], expected)) {
+    const failed = rateLimiter.consume(`admin-auth-failure:${requestIdentity(req)}`, 10, 15 * 60_000);
+    res.setHeader('X-RateLimit-Remaining', String(failed.remaining));
+    if (!failed.allowed) {
+      res.setHeader('Retry-After', String(Math.ceil(failed.retryAfterMs / 1000)));
+      apiError(res, 429, 'ADMIN_AUTH_RATE_LIMITED', '관리자 확인 실패가 너무 많습니다. 잠시 후 다시 시도하세요.');
+      return false;
+    }
     apiError(res, 403, 'ADMIN_REQUIRED', 'Valid Testnet admin key is required');
     return false;
   }
