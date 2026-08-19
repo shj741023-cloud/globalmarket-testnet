@@ -37,6 +37,7 @@ const { listFavoriteProductIds, addFavorite, removeFavorite } = require('./lib/f
 const { assertReportTarget } = require('./lib/report-target');
 const { paginate } = require('./lib/pagination');
 const { RateLimiter } = require('./lib/rate-limit');
+const { isMutationOriginAllowed, assertActiveUser } = require('./lib/request-security');
 
 assertTestnetEnvironment();
 
@@ -110,6 +111,11 @@ function requireUserId(req, res) {
     apiError(res, 401, 'AUTH_REQUIRED', 'Pi Testnet login is required');
     return null;
   }
+  const user = store.state.users.find((item) => item.id === userId);
+  if (!user || user.status !== 'active') {
+    apiError(res, 403, 'USER_NOT_ACTIVE', '사용할 수 없는 계정입니다.');
+    return null;
+  }
   return userId;
 }
 
@@ -181,6 +187,9 @@ async function handleApi(req, res, url) {
   const method = req.method;
   const pathname = url.pathname;
   let match;
+  if (!isMutationOriginAllowed({ method, origin: req.headers.origin, authorization: req.headers.authorization, extraOrigins: process.env.ALLOWED_ORIGINS })) {
+    return apiError(res, 403, 'ORIGIN_NOT_ALLOWED', '허용되지 않은 사이트에서 보낸 요청입니다.');
+  }
   if (!allowApiRequest(req, res, pathname)) return;
 
   if (method === 'GET' && pathname === '/api/v1/health') {
@@ -206,6 +215,7 @@ async function handleApi(req, res, url) {
     } else {
       user.username = piUser.username || user.username;
     }
+    assertActiveUser(user);
     const { token, session } = createSession(store.state, user.id);
     store.event('USER_AUTHENTICATED', user.id, { sessionId: session.id }); store.save();
     res.setHeader('Set-Cookie', sessionCookie(token, req.headers['x-forwarded-proto'] === 'https'));
@@ -215,6 +225,7 @@ async function handleApi(req, res, url) {
     if (String(process.env.ALLOW_DEMO_AUTH || 'false').toLowerCase() !== 'true') return apiError(res, 403, 'DEMO_AUTH_DISABLED', 'Demo auth is disabled');
     let user = store.state.users.find((item) => item.piUid === 'demo-testnet-user');
     if (!user) { user = { id: store.id('user'), piUid: 'demo-testnet-user', username: 'Testnet Demo', status: 'active', createdAt: new Date().toISOString() }; store.state.users.push(user); }
+    assertActiveUser(user);
     const { token } = createSession(store.state, user.id); store.save();
     res.setHeader('Set-Cookie', sessionCookie(token, false));
     return sendJson(res, 200, { ok: true, user: { id: user.id, username: user.username }, demo: true });
