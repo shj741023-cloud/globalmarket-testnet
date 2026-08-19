@@ -39,6 +39,7 @@ const { paginate } = require('./lib/pagination');
 const { RateLimiter } = require('./lib/rate-limit');
 const { isMutationOriginAllowed, assertActiveUser } = require('./lib/request-security');
 const { deploymentRevision } = require('./lib/runtime');
+const { createShutdownHandler } = require('./lib/shutdown');
 
 assertTestnetEnvironment();
 
@@ -818,7 +819,12 @@ const server = http.createServer(async (req, res) => {
 if (require.main === module) {
   const host = process.env.HOST || '0.0.0.0';
   store.initialize()
-    .then(({ backend }) => server.listen(PORT, host, () => console.log(`Global Market Testnet (${backend}): http://${host}:${PORT}`)))
+    .then(({ backend }) => {
+      server.listen(PORT, host, () => console.log(`Global Market Testnet (${backend}): http://${host}:${PORT}`));
+      const shutdown = createShutdownHandler({ server, store });
+      process.once('SIGTERM', () => shutdown('SIGTERM'));
+      process.once('SIGINT', () => shutdown('SIGINT'));
+    })
     .catch((error) => {
       console.error('STORE_INITIALIZATION_FAILED', error.message);
       process.exitCode = 1;
