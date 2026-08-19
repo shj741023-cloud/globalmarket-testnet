@@ -173,15 +173,58 @@ async function loadAdminAudit() {
   return items.length;
 }
 
+const disputeDecisionNames = { full_refund: 'Test-Pi 전액 모의환불', partial_refund: 'Test-Pi 부분 모의환불', release_settlement: '판매자 모의정산 진행' };
+
+function renderAdminDisputes(items) {
+  $('adminDisputes').innerHTML = items.length ? items.map((item) => `
+    <article class="management-card admin-report-card">
+      <div><strong>${escapeHtml(item.productTitle)}</strong><p class="meta">분쟁 ${escapeHtml(item.id)} · ${item.status === 'closed' ? '처리 완료' : '접수'}</p></div>
+      <p>${escapeHtml(item.reason)}</p><p class="meta">거래 ${escapeHtml(item.tradeId)} · ${escapeHtml(item.amount)} Test-Pi · ${item.settlementHold ? '정산 보류 중' : '정산 보류 해제'}</p>
+      ${item.decision ? `<p class="admin-decision"><strong>${escapeHtml(disputeDecisionNames[item.decision.type] || item.decision.type)}</strong> · ${escapeHtml(item.decision.reason)}</p>` : ''}
+      ${item.status !== 'closed' ? `<div class="actions"><select data-dispute-type="${escapeHtml(item.id)}"><option value="full_refund">전액 모의환불</option><option value="partial_refund">부분 모의환불</option><option value="release_settlement">판매자 모의정산 진행</option></select><button class="primary" data-dispute-decide="${escapeHtml(item.id)}">분쟁 판정</button></div>` : ''}
+    </article>`).join('') : '<p class="empty">조건에 맞는 택배 안전거래 분쟁이 없습니다.</p>';
+  $('adminDisputes').querySelectorAll('[data-dispute-decide]').forEach((button) => button.addEventListener('click', () => decideAdminDispute(button.dataset.disputeDecide)));
+}
+
+async function loadAdminDisputes() {
+  const { items } = await adminApi('/api/v1/admin/disputes');
+  renderAdminDisputes(items);
+  return items.length;
+}
+
+async function decideAdminDispute(disputeId) {
+  const type = [...document.querySelectorAll('[data-dispute-type]')].find((item) => item.dataset.disputeType === disputeId)?.value;
+  if (!type) return;
+  const body = { type };
+  if (type === 'partial_refund') {
+    const retainedAmount = prompt('판매자에게 남길 Test-Pi 금액을 입력하세요.');
+    if (retainedAmount === null || retainedAmount.trim() === '') return;
+    body.retainedAmount = Number(retainedAmount);
+    if (!Number.isFinite(body.retainedAmount) || body.retainedAmount < 0) return alert('올바른 Test-Pi 금액을 입력하세요.');
+  }
+  const reason = prompt('분쟁 판정 사유를 입력하세요. 신청자에게 안내됩니다.');
+  if (!reason?.trim()) return;
+  body.reason = reason.trim();
+  if (!confirm(`${disputeDecisionNames[type]}으로 처리할까요? 실제 Pi가 이동하지 않는 Testnet 모의처리입니다.`)) return;
+  try {
+    await adminApi(`/api/v1/admin/disputes/${encodeURIComponent(disputeId)}/decision`, { method: 'POST', body: JSON.stringify(body) });
+    $('adminResult').textContent = 'Testnet 분쟁 판정을 저장했습니다. 실제 Pi는 이동하지 않았습니다.';
+    await Promise.all([loadAdminDisputes(), loadAdminAudit()]);
+  } catch (error) { $('adminResult').textContent = error.message; }
+}
+
 function showAdminSection(name) {
   const users = name === 'users';
   const reports = name === 'reports';
+  const disputes = name === 'disputes';
   $('adminUsers').classList.toggle('hidden', !users);
   $('adminReports').classList.toggle('hidden', !reports);
+  $('adminDisputes').classList.toggle('hidden', !disputes);
   $('adminAudit').classList.toggle('hidden', name !== 'audit');
   $('adminSearchForm').classList.toggle('hidden', !users);
   $('showAdminUsers').classList.toggle('active', users);
   $('showAdminReports').classList.toggle('active', reports);
+  $('showAdminDisputes').classList.toggle('active', disputes);
   $('showAdminAudit').classList.toggle('active', name === 'audit');
 }
 
@@ -556,12 +599,13 @@ $('navRegister').addEventListener('click', () => { if (!state.user) return alert
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('chatPanel').classList.remove('hidden'); loadChats().then(() => $('chatPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('myPanel').classList.remove('hidden'); loadMyMarket().then(() => $('myPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('openAdmin').addEventListener('click', () => { $('adminPanel').classList.remove('hidden'); $('adminPanel').scrollIntoView({ behavior: 'smooth' }); });
-$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
+$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
 $('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { const [, reportCount] = await Promise.all([loadAdminUsers(), loadAdminReports()]); $('adminUnlockForm').classList.add('hidden'); $('adminWorkspace').classList.remove('hidden'); showAdminSection('users'); $('adminKey').value = ''; $('adminResult').textContent = `관리자 확인 완료 · 접수된 신고 ${reportCount}건`; } catch (error) { state.adminKey = null; $('adminResult').textContent = error.message; } });
 $('adminSearchForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await loadAdminUsers(); } catch (error) { $('adminResult').textContent = error.message; } });
 $('clearAdminSearch').addEventListener('click', () => { $('adminUserQuery').value = ''; $('adminUserStatus').value = ''; loadAdminUsers().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminUsers').addEventListener('click', () => showAdminSection('users'));
 $('showAdminReports').addEventListener('click', () => { showAdminSection('reports'); loadAdminReports().catch((error) => { $('adminResult').textContent = error.message; }); });
+$('showAdminDisputes').addEventListener('click', () => { showAdminSection('disputes'); loadAdminDisputes().then((count) => { $('adminResult').textContent = `택배 안전거래 분쟁 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminAudit').addEventListener('click', () => { showAdminSection('audit'); loadAdminAudit().then((count) => { $('adminResult').textContent = `안전하게 정리된 작업기록 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('productForm').addEventListener('submit', registerProduct);
 $('productImage').addEventListener('change', () => prepareSelectedImages('productImage', 'registerProductImages', 'registerImages', 'registerResult'));

@@ -44,6 +44,7 @@ const { createRequestId } = require('./lib/request-id');
 const { changeUserStatus } = require('./lib/user-status');
 const { adminUserSummaries } = require('./lib/admin-users');
 const { adminAuditSummaries } = require('./lib/admin-audit');
+const { adminDisputeSummaries } = require('./lib/admin-disputes');
 
 assertTestnetEnvironment();
 
@@ -770,6 +771,11 @@ async function handleApi(req, res, url) {
     notify(dispute.applicantId, 'dispute_decided', '분쟁 판정이 완료되었습니다', body.reason, dispute.id);
     store.event('DISPUTE_DECIDED', dispute.id, { type: body.type, refundId: refund?.id || null }); await store.save();
     return sendJson(res, 200, { ok: true, dispute, trade, refund });
+  }
+  if (method === 'GET' && pathname === '/api/v1/admin/disputes') {
+    if (!requireTestAdmin(req, res)) return;
+    const query = Object.fromEntries(url.searchParams.entries());
+    return sendJson(res, 200, { ok: true, items: adminDisputeSummaries(store.state, query), filters: query });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/reports') {
     if (!requireTestAdmin(req, res)) return;

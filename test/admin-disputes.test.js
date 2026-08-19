@@ -1,0 +1,24 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { adminDisputeSummaries } = require('../lib/admin-disputes');
+
+const state = {
+  disputes: [{ id: 'd1', tradeId: 't1', applicantId: 'private-user', reason: '파손', status: 'received', settlementHold: true, createdAt: '2026-08-19T00:00:00.000Z' }],
+  trades: [{ id: 't1', productId: 'p1', buyerId: 'private-buyer', sellerId: 'private-seller', amount: 25, method: 'parcel_testnet' }],
+  products: [{ id: 'p1', title: '중고 카메라' }]
+};
+
+test('관리자 분쟁 요약은 거래 당사자 식별값을 제외한다', () => {
+  const [item] = adminDisputeSummaries(state);
+  assert.equal(item.productTitle, '중고 카메라');
+  assert.equal(item.amount, 25);
+  assert.equal(item.applicantId, undefined);
+  assert.equal(JSON.stringify(item).includes('private-'), false);
+});
+
+test('관리자 분쟁 요약은 상태 필터를 적용한다', () => {
+  assert.equal(adminDisputeSummaries(state, { status: 'received' }).length, 1);
+  assert.equal(adminDisputeSummaries(state, { status: 'closed' }).length, 0);
+});
