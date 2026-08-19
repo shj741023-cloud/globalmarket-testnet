@@ -95,7 +95,7 @@ async function loadProducts(query = '') {
       <h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p>
       <p class="meta">${escapeHtml(item.region)} · 기능시험용 가상 상품</p>
       <p class="seller-line">${escapeHtml(item.seller?.username || 'Pi 사용자')} · ${escapeHtml(item.seller?.trustLevel || 'Bronze')}</p>
-      <div class="method-row"><span class="tag">직거래</span><span class="tag">Testnet 택배</span></div>
+      <div class="method-row">${item.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('')}</div>
       <button data-product="${item.id}">상세 보기</button>
     </article>`).join('');
   document.querySelectorAll('[data-product]').forEach((button) => button.addEventListener('click', () => openProductDetail(button.dataset.product)));
@@ -149,8 +149,11 @@ async function registerProduct(event) {
 async function chooseTrade(productId) {
   if (!state.user) { alert('Pi Testnet 로그인 후 거래조건을 제안할 수 있습니다.'); return; }
   const product = state.products.find((item) => item.id === productId);
-  const parcel = confirm('확인: Testnet 택배 모의 안전거래\n취소: 직거래(플랫폼 안전결제 없음)');
-  const type = parcel ? 'parcel_testnet' : 'direct';
+  if (!product) throw new Error('상품 정보를 다시 불러오세요.');
+  let type;
+  if (product.methods.length === 1) type = product.methods[0];
+  else type = confirm('확인: Testnet 택배 모의 안전거래\n취소: 직거래(플랫폼 안전결제 없음)') ? 'parcel_testnet' : 'direct';
+  if (!product.methods.includes(type)) throw new Error('판매자가 허용한 거래방식만 선택할 수 있습니다.');
   const { room } = await api(`/api/v1/products/${productId}/chat-rooms`, { method: 'POST' });
   const { agreement } = await api(`/api/v1/chat-rooms/${room.id}/agreements`, {
     method: 'POST', body: JSON.stringify({ price: product.price, type })

@@ -337,7 +337,9 @@ async function handleApi(req, res, url) {
     const body = await readJson(req);
     const product = store.findProduct(body.productId);
     if (!findOr404(res, product, 'product')) return;
-    if (!['direct', 'parcel_testnet'].includes(body.type)) return apiError(res, 400, 'INVALID_TRADE_TYPE', 'Use direct or parcel_testnet');
+    if (product.status !== 'available') return apiError(res, 409, 'PRODUCT_NOT_AVAILABLE', 'Product is not available');
+    if (buyerId === product.sellerId) return apiError(res, 409, 'SELF_TRADE_BLOCKED', 'Seller cannot buy own product');
+    if (!['direct', 'parcel_testnet'].includes(body.type) || !product.methods.includes(body.type)) return apiError(res, 400, 'INVALID_TRADE_TYPE', 'Use a trade type supported by this product');
     const trade = {
       id: store.id('trade'), productId: product.id, sellerId: product.sellerId,
       buyerId, type: body.type, amount: product.price,
