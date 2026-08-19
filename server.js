@@ -40,6 +40,7 @@ const { RateLimiter } = require('./lib/rate-limit');
 const { isMutationOriginAllowed, assertActiveUser } = require('./lib/request-security');
 const { deploymentRevision } = require('./lib/runtime');
 const { createShutdownHandler } = require('./lib/shutdown');
+const { createRequestId } = require('./lib/request-id');
 
 assertTestnetEnvironment();
 
@@ -69,7 +70,7 @@ function sendJson(res, status, data) {
 }
 
 function apiError(res, status, code, message, details) {
-  sendJson(res, status, { ok: false, error: { code, message, details } });
+  sendJson(res, status, { ok: false, error: { code, message, details, requestId: res.getHeader('X-Request-Id') } });
 }
 
 async function readJson(req) {
@@ -806,12 +807,14 @@ function serveStatic(res, pathname) {
 }
 
 const server = http.createServer(async (req, res) => {
+  const requestId = createRequestId();
+  res.setHeader('X-Request-Id', requestId);
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (url.pathname.startsWith('/api/')) return await handleApi(req, res, url);
     return serveStatic(res, url.pathname);
   } catch (error) {
-    console.error(error.code || 'SERVER_ERROR', error.message);
+    console.error(requestId, error.code || 'SERVER_ERROR', error.message);
     return apiError(res, error.status || 400, error.code || 'BAD_REQUEST', error.message, error.details);
   }
 });

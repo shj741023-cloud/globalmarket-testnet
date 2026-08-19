@@ -71,7 +71,10 @@ async function api(path, options = {}) {
     }
   });
   const payload = await response.json();
-  if (!response.ok) throw new Error(`${payload.error?.code || 'ERROR'}: ${payload.error?.message || '요청 실패'}`);
+  if (!response.ok) {
+    const requestId = payload.error?.requestId ? ` (문의번호 ${payload.error.requestId})` : '';
+    throw new Error(`${payload.error?.code || 'ERROR'}: ${payload.error?.message || '요청 실패'}${requestId}`);
+  }
   return payload;
 }
 
