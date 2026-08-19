@@ -44,7 +44,7 @@ const { createRequestId } = require('./lib/request-id');
 const { changeUserStatus } = require('./lib/user-status');
 const { adminUserSummaries } = require('./lib/admin-users');
 const { adminAuditSummaries } = require('./lib/admin-audit');
-const { adminDisputeSummaries } = require('./lib/admin-disputes');
+const { adminDisputeSummary, adminRefundSummary, adminDisputeSummaries } = require('./lib/admin-disputes');
 const { moderationQueue, moderateProduct } = require('./lib/product-moderation');
 const { adminDashboardSummary } = require('./lib/admin-dashboard');
 const { adminKeyMatches, requestIdentity } = require('./lib/admin-auth');
@@ -762,7 +762,10 @@ async function handleApi(req, res, url) {
     if (!requireTestAdmin(req, res)) return;
     const dispute = store.state.disputes.find((item) => item.id === match[1]);
     if (!findOr404(res, dispute, 'dispute')) return;
-    if (dispute.status === 'closed') return sendJson(res, 200, { ok: true, dispute, idempotent: true });
+    if (dispute.status === 'closed') {
+      const existingRefund = store.state.refunds.find((item) => item.disputeId === dispute.id) || null;
+      return sendJson(res, 200, { ok: true, dispute: adminDisputeSummary(store.state, dispute), refund: adminRefundSummary(existingRefund), idempotent: true });
+    }
     const trade = store.findTrade(dispute.tradeId); if (!findOr404(res, trade, 'trade')) return;
     const body = await readJson(req);
     if (!body.reason) return apiError(res, 400, 'DECISION_REASON_REQUIRED', 'reason is required');
@@ -781,7 +784,7 @@ async function handleApi(req, res, url) {
     recordAudit(req, 'DISPUTE_DECIDED', 'dispute', dispute.id, body.reason, before, dispute);
     notify(dispute.applicantId, 'dispute_decided', '분쟁 판정이 완료되었습니다', body.reason, dispute.id);
     store.event('DISPUTE_DECIDED', dispute.id, { type: body.type, refundId: refund?.id || null }); await store.save();
-    return sendJson(res, 200, { ok: true, dispute, trade, refund });
+    return sendJson(res, 200, { ok: true, dispute: adminDisputeSummary(store.state, dispute), refund: adminRefundSummary(refund) });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/disputes') {
     if (!requireTestAdmin(req, res)) return;
