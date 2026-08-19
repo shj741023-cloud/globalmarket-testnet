@@ -98,7 +98,7 @@ async function loadProducts(query = '', append = false) {
   state.products = append ? [...state.products, ...items] : items;
   state.productHasMore = Boolean(pagination?.hasMore);
   $('loadMoreProducts').classList.toggle('hidden', !state.productHasMore);
-  $('products').innerHTML = state.products.map((item) => `
+  $('products').innerHTML = state.products.length ? state.products.map((item) => `
     <article class="product">
       <div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
       <h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p>
@@ -106,7 +106,7 @@ async function loadProducts(query = '', append = false) {
       <p class="seller-line">${escapeHtml(item.seller?.username || 'Pi 사용자')} · ${escapeHtml(item.seller?.trustLevel || 'Bronze')}</p>
       <div class="method-row">${item.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('')}</div>
       <button data-product="${item.id}">상세 보기</button>
-    </article>`).join('');
+    </article>`).join('') : '<p class="empty product-empty">조건에 맞는 상품이 없습니다. 검색조건을 바꾸거나 초기화를 눌러보세요.</p>';
   document.querySelectorAll('[data-product]').forEach((button) => button.addEventListener('click', () => openProductDetail(button.dataset.product)));
 }
 
@@ -391,8 +391,14 @@ async function runChecklistPayment() {
 }
 
 async function health() {
-  try { const data = await api('/api/v1/health'); $('health').textContent = data.network === 'testnet' ? 'Testnet 정상' : '차단 필요'; }
-  catch { $('health').textContent = '서버 오류'; }
+  try {
+    const [status, ready] = await Promise.all([api('/api/v1/health'), api('/api/v1/ready')]);
+    $('health').textContent = status.network === 'testnet' && ready.storage === 'postgres' ? 'Testnet·DB 정상' : '설정 확인 필요';
+    $('health').title = `배포 ${ready.revision}`;
+  } catch (error) {
+    $('health').textContent = '서버 점검 필요';
+    $('health').title = error.message;
+  }
 }
 
 async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }

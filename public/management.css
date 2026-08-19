@@ -30,6 +30,7 @@
 .seller-summary strong { font-size: 19px; }
 .danger-text { color: #9b2d30; border-color: #d8b8b9; }
 .wide { width: 100%; margin-top: 16px; }
+.product-empty { grid-column: 1 / -1; padding: 36px 18px; text-align: center; }
 @media (max-width: 520px) {
   .product-detail-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; }
   .product-detail-gallery img, .product-detail-gallery .empty-image { flex: 0 0 88%; scroll-snap-align: start; }
