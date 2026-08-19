@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, products: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
+const state = { user: null, sessionToken: null, adminKey: null, products: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
@@ -76,6 +76,45 @@ async function api(path, options = {}) {
     throw new Error(`${payload.error?.code || 'ERROR'}: ${payload.error?.message || '요청 실패'}${requestId}`);
   }
   return payload;
+}
+
+async function adminApi(path, options = {}) {
+  if (!state.adminKey) throw new Error('관리자 키를 먼저 확인하세요.');
+  return api(path, { ...options, headers: { 'x-test-admin-key': state.adminKey, 'x-test-admin-id': 'web-test-admin', ...(options.headers || {}) } });
+}
+
+function renderAdminUsers(items) {
+  $('adminUsers').innerHTML = items.length ? items.map((user) => `
+    <article class="management-card admin-user-card">
+      <div><strong>${escapeHtml(user.username)}</strong><p class="meta">${escapeHtml(user.id)} · ${user.status === 'suspended' ? '이용 정지' : '활성'}</p></div>
+      <div class="admin-user-stats"><span>${escapeHtml(user.trust.level)} ${escapeHtml(user.trust.score)}점</span><span>정상거래 ${escapeHtml(user.trust.normalTradeCount)}건</span><span>판매중 ${escapeHtml(user.activeProductCount)}/${escapeHtml(user.productCount)}</span></div>
+      <button class="${user.status === 'suspended' ? 'secondary' : 'secondary danger-text'}" data-admin-user="${escapeHtml(user.id)}" data-admin-status="${user.status === 'suspended' ? 'active' : 'suspended'}">${user.status === 'suspended' ? '계정 복구' : '계정 정지'}</button>
+    </article>`).join('') : '<p class="empty">조건에 맞는 회원이 없습니다.</p>';
+  $('adminUsers').querySelectorAll('[data-admin-user]').forEach((button) => button.addEventListener('click', () => changeAdminUserStatus(button)));
+}
+
+async function loadAdminUsers() {
+  const params = new URLSearchParams();
+  const q = $('adminUserQuery').value.trim();
+  const status = $('adminUserStatus').value;
+  if (q) params.set('q', q);
+  if (status) params.set('status', status);
+  const { items } = await adminApi(`/api/v1/admin/users?${params}`);
+  renderAdminUsers(items);
+  $('adminResult').textContent = `회원 ${items.length}명을 확인했습니다.`;
+}
+
+async function changeAdminUserStatus(button) {
+  const nextStatus = button.dataset.adminStatus;
+  const action = nextStatus === 'suspended' ? '정지' : '복구';
+  const reason = prompt(`계정 ${action} 사유를 입력하세요.`);
+  if (!reason?.trim()) return;
+  if (!confirm(`이 계정을 ${action}할까요?`)) return;
+  try {
+    const { revokedSessions = 0, pausedProducts = 0 } = await adminApi(`/api/v1/admin/users/${encodeURIComponent(button.dataset.adminUser)}/status`, { method: 'PATCH', body: JSON.stringify({ status: nextStatus, reason: reason.trim() }) });
+    $('adminResult').textContent = `계정을 ${action}했습니다. 종료된 로그인 ${revokedSessions}개, 중지된 상품 ${pausedProducts}개.`;
+    await loadAdminUsers();
+  } catch (error) { $('adminResult').textContent = error.message; }
 }
 
 function log(message, data) {
@@ -448,6 +487,11 @@ $('navSearch').addEventListener('click', () => $('products').scrollIntoView({ be
 $('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); $('registerPanel').classList.remove('hidden'); $('registerPanel').scrollIntoView({ behavior: 'smooth' }); });
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('chatPanel').classList.remove('hidden'); loadChats().then(() => $('chatPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('myPanel').classList.remove('hidden'); loadMyMarket().then(() => $('myPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
+$('openAdmin').addEventListener('click', () => { $('adminPanel').classList.remove('hidden'); $('adminPanel').scrollIntoView({ behavior: 'smooth' }); });
+$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminResult').textContent = ''; $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
+$('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { await loadAdminUsers(); $('adminUnlockForm').classList.add('hidden'); $('adminSearchForm').classList.remove('hidden'); $('adminKey').value = ''; } catch (error) { state.adminKey = null; $('adminResult').textContent = error.message; } });
+$('adminSearchForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await loadAdminUsers(); } catch (error) { $('adminResult').textContent = error.message; } });
+$('clearAdminSearch').addEventListener('click', () => { $('adminUserQuery').value = ''; $('adminUserStatus').value = ''; loadAdminUsers().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('productForm').addEventListener('submit', registerProduct);
 $('productImage').addEventListener('change', () => prepareSelectedImages('productImage', 'registerProductImages', 'registerImages', 'registerResult'));
 $('editProductForm').addEventListener('submit', saveProductEdit);
