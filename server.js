@@ -49,6 +49,7 @@ const { moderationQueue, moderateProduct } = require('./lib/product-moderation')
 const { adminDashboardSummary } = require('./lib/admin-dashboard');
 const { adminKeyMatches, requestIdentity } = require('./lib/admin-auth');
 const { adminReportSummary, adminReportSummaries } = require('./lib/admin-reports');
+const { securityHeaders } = require('./lib/security-headers');
 
 assertTestnetEnvironment();
 
@@ -70,9 +71,7 @@ function sendJson(res, status, data) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+    ...securityHeaders()
   });
   res.end(JSON.stringify(data));
 }
@@ -859,13 +858,11 @@ function serveStatic(res, pathname) {
   const requested = pathname === '/' ? '/index.html' : pathname;
   const filePath = path.normalize(path.join(PUBLIC_DIR, requested));
   if (!filePath.startsWith(PUBLIC_DIR) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    res.writeHead(404); return res.end('Not found');
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...securityHeaders() }); return res.end('Not found');
   }
   res.writeHead(200, {
     'Content-Type': contentTypes[path.extname(filePath)] || 'application/octet-stream',
-    'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    ...securityHeaders(),
     'Cache-Control': path.extname(filePath) === '.html' ? 'no-cache' : 'public, max-age=300'
   });
   fs.createReadStream(filePath).pipe(res);
