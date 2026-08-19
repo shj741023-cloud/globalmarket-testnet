@@ -81,6 +81,16 @@ test('판매자만 자신의 상품을 수정할 수 있다', () => {
   assert.equal(product.price, 30);
 });
 
+test('상품 수정에서 사진 순서 변경과 전체 삭제를 반영한다', () => {
+  const first = 'data:image/jpeg;base64,AA==';
+  const second = 'data:image/png;base64,AA==';
+  const product = { ...valid, sellerId: 'seller', status: 'available', images: [first, second] };
+  updateOwnedProduct(product, 'seller', { images: [second, first] });
+  assert.deepEqual(product.images, [second, first]);
+  updateOwnedProduct(product, 'seller', { images: [] });
+  assert.deepEqual(product.images, []);
+});
+
 test('수정한 내용에 제한품목 의심어가 있으면 다시 검토중 처리한다', () => {
   const product = { ...valid, sellerId: 'seller', status: 'available' };
   updateOwnedProduct(product, 'seller', { title: '미개봉 전자담배' });

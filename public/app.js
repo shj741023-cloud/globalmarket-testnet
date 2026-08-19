@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, products: [], categories: [], selectedProduct: null, editingProduct: null, room: null, agreement: null, trade: null, payment: null, activeRoom: null };
+const state = { user: null, sessionToken: null, products: [], categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
@@ -30,6 +30,35 @@ async function compressProductImages(files) {
   const selected = [...files];
   if (selected.length > 3) throw new Error('상품 사진은 최대 3장까지 선택할 수 있습니다.');
   return Promise.all(selected.map(compressProductImage));
+}
+
+function renderImageEditor(containerId, imagesKey) {
+  const images = state[imagesKey];
+  const container = $(containerId);
+  container.innerHTML = images.length ? images.map((image, index) => `
+    <div class="image-editor-item">
+      <img src="${image}" alt="상품 사진 ${index + 1}">
+      <small>${index === 0 ? '대표사진' : `${index + 1}번째`}</small>
+      <div><button type="button" data-image-left="${index}" ${index === 0 ? 'disabled' : ''}>←</button><button type="button" data-image-right="${index}" ${index === images.length - 1 ? 'disabled' : ''}>→</button><button type="button" data-image-remove="${index}">삭제</button></div>
+    </div>`).join('') : '<p class="empty">선택된 사진이 없습니다.</p>';
+  const redraw = () => renderImageEditor(containerId, imagesKey);
+  container.querySelectorAll('[data-image-remove]').forEach((button) => button.addEventListener('click', () => { images.splice(Number(button.dataset.imageRemove), 1); redraw(); }));
+  container.querySelectorAll('[data-image-left]').forEach((button) => button.addEventListener('click', () => { const index = Number(button.dataset.imageLeft); [images[index - 1], images[index]] = [images[index], images[index - 1]]; redraw(); }));
+  container.querySelectorAll('[data-image-right]').forEach((button) => button.addEventListener('click', () => { const index = Number(button.dataset.imageRight); [images[index], images[index + 1]] = [images[index + 1], images[index]]; redraw(); }));
+}
+
+async function prepareSelectedImages(inputId, containerId, imagesKey, resultId) {
+  try {
+    if (!$(inputId).files.length) return;
+    $(resultId).textContent = '사진을 준비하고 있습니다.';
+    state[imagesKey] = await compressProductImages($(inputId).files);
+    $(inputId).value = '';
+    renderImageEditor(containerId, imagesKey);
+    $(resultId).textContent = `${state[imagesKey].length}장의 사진이 준비됐습니다.`;
+  } catch (error) {
+    $(inputId).value = '';
+    $(resultId).textContent = error.message;
+  }
 }
 
 async function api(path, options = {}) {
@@ -105,11 +134,11 @@ async function registerProduct(event) {
   if ($('methodParcel').checked) methods.push('parcel_testnet');
   try {
     $('registerResult').textContent = '사진과 상품 정보를 준비하고 있습니다.';
-    const images = await compressProductImages($('productImage').files);
+    const images = [...state.registerImages];
     const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods, images };
     const { product } = await api('/api/v1/products', { method: 'POST', body: JSON.stringify(body) });
     $('registerResult').textContent = product.status === 'under_review' ? '등록 내용이 검토 대상으로 접수됐습니다. 검토 전에는 공개되지 않습니다.' : '시험 상품이 등록됐습니다.';
-    $('productForm').reset(); $('methodDirect').checked = true; $('methodParcel').checked = true;
+    $('productForm').reset(); state.registerImages = []; renderImageEditor('registerProductImages', 'registerImages'); $('methodDirect').checked = true; $('methodParcel').checked = true;
     await Promise.all([loadProducts(), loadMyProducts()]);
   } catch (error) { $('registerResult').textContent = error.message; }
 }
@@ -161,16 +190,15 @@ function openProductEdit(product) {
   $('editMethodParcel').checked = product.methods.includes('parcel_testnet');
   $('editProductImage').value = '';
   $('editProductResult').textContent = '';
-  const images = productImages(product);
-  $('editProductImages').innerHTML = images.length
-    ? images.map((image, index) => `<img src="${image}" alt="현재 상품 사진 ${index + 1}">`).join('')
-    : '<p class="empty">현재 등록된 사진이 없습니다.</p>';
+  state.editingImages = [...productImages(product)];
+  renderImageEditor('editProductImages', 'editingImages');
   $('editProductPanel').classList.remove('hidden');
   $('editProductPanel').scrollIntoView({ behavior: 'smooth' });
 }
 
 function closeProductEdit() {
   state.editingProduct = null;
+  state.editingImages = [];
   $('editProductPanel').classList.add('hidden');
   $('editProductForm').reset();
   $('editProductImages').innerHTML = '';
@@ -193,7 +221,7 @@ async function saveProductEdit(event) {
       region: $('editProductRegion').value,
       methods
     };
-    if ($('editProductImage').files.length) body.images = await compressProductImages($('editProductImage').files);
+    body.images = [...state.editingImages];
     const { product: updated } = await api(`/api/v1/products/${product.id}`, { method: 'PATCH', body: JSON.stringify(body) });
     $('editProductResult').textContent = updated.status === 'under_review' ? '수정 내용이 검토 상태로 접수됐습니다.' : '상품 정보가 수정됐습니다.';
     await Promise.all([loadMyProducts(), loadProducts()]);
@@ -332,7 +360,9 @@ $('navRegister').addEventListener('click', () => { if (!state.user) return alert
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('chatPanel').classList.remove('hidden'); loadChats().then(() => $('chatPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('myPanel').classList.remove('hidden'); loadMyMarket().then(() => $('myPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('productForm').addEventListener('submit', registerProduct);
+$('productImage').addEventListener('change', () => prepareSelectedImages('productImage', 'registerProductImages', 'registerImages', 'registerResult'));
 $('editProductForm').addEventListener('submit', saveProductEdit);
+$('editProductImage').addEventListener('change', () => prepareSelectedImages('editProductImage', 'editProductImages', 'editingImages', 'editProductResult'));
 $('cancelProductEdit').addEventListener('click', closeProductEdit);
 $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch((error) => alert(error.message)));
 $('refreshChats').addEventListener('click', () => loadChats().catch((error) => alert(error.message)));

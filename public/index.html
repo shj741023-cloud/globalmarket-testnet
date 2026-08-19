@@ -81,7 +81,8 @@
       <form id="productForm" class="product-form">
         <label>상품명<input id="productTitle" name="title" minlength="2" maxlength="80" required></label>
         <label>설명<textarea id="productDescription" name="description" minlength="10" maxlength="2000" required></textarea></label>
-        <label>상품 사진(선택·최대 3장)<input id="productImage" name="image" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>사진은 전송 전에 자동으로 축소됩니다. 실제 개인정보가 보이는 사진은 올리지 마세요.</small></label>
+        <label>상품 사진(선택·최대 3장)<input id="productImage" name="image" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>사진은 선택 즉시 자동으로 축소됩니다. 첫 번째 사진이 대표사진입니다.</small></label>
+        <div id="registerProductImages" class="image-editor" aria-live="polite"></div>
         <div class="form-row"><label>가격(Test-Pi)<input id="productPrice" name="price" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="productCategory" name="categoryId" required></select></label></div>
         <label>거래 지역<input id="productRegion" name="region" maxlength="60" placeholder="예: 서울 강남구"></label>
         <fieldset><legend>거래방식</legend><label class="check"><input id="methodDirect" type="checkbox" checked> 직거래(당사자 책임)</label><label class="check"><input id="methodParcel" type="checkbox" checked> Testnet 택배</label></fieldset>
@@ -93,7 +94,7 @@
     <section id="editProductPanel" class="panel hidden">
       <div class="section-title"><div><p class="eyebrow">EDIT TEST ITEM</p><h2>상품 정보 수정</h2></div><button id="cancelProductEdit" class="secondary" type="button">수정 취소</button></div>
       <p class="form-notice">새 사진을 선택하지 않으면 현재 사진이 유지됩니다. 제한품목으로 의심되는 내용은 검토 상태로 전환될 수 있습니다.</p>
-      <div id="editProductImages" class="edit-product-images"></div>
+      <div id="editProductImages" class="image-editor"></div>
       <form id="editProductForm" class="product-form">
         <label>상품명<input id="editProductTitle" minlength="2" maxlength="80" required></label>
         <label>설명<textarea id="editProductDescription" minlength="10" maxlength="2000" required></textarea></label>
