@@ -38,6 +38,7 @@ const { assertReportTarget } = require('./lib/report-target');
 const { paginate } = require('./lib/pagination');
 const { RateLimiter } = require('./lib/rate-limit');
 const { isMutationOriginAllowed, assertActiveUser } = require('./lib/request-security');
+const { deploymentRevision } = require('./lib/runtime');
 
 assertTestnetEnvironment();
 
@@ -193,7 +194,7 @@ async function handleApi(req, res, url) {
   if (!allowApiRequest(req, res, pathname)) return;
 
   if (method === 'GET' && pathname === '/api/v1/health') {
-    return sendJson(res, 200, { ok: true, network: NETWORK, asset: ASSET, isSimulation: true, storage: store.backend });
+    return sendJson(res, 200, { ok: true, network: NETWORK, asset: ASSET, isSimulation: true, storage: store.backend, revision: deploymentRevision() });
   }
   if (method === 'GET' && pathname === '/api/v1/config') {
     return sendJson(res, 200, {
