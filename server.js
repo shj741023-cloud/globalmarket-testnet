@@ -160,7 +160,7 @@ async function handleApi(req, res, url) {
   let match;
 
   if (method === 'GET' && pathname === '/api/v1/health') {
-    return sendJson(res, 200, { ok: true, network: NETWORK, asset: ASSET, isSimulation: true });
+    return sendJson(res, 200, { ok: true, network: NETWORK, asset: ASSET, isSimulation: true, storage: store.backend });
   }
   if (method === 'GET' && pathname === '/api/v1/config') {
     return sendJson(res, 200, {
@@ -740,7 +740,12 @@ const server = http.createServer(async (req, res) => {
 
 if (require.main === module) {
   const host = process.env.HOST || '0.0.0.0';
-  server.listen(PORT, host, () => console.log(`Global Market Testnet: http://${host}:${PORT}`));
+  store.initialize()
+    .then(({ backend }) => server.listen(PORT, host, () => console.log(`Global Market Testnet (${backend}): http://${host}:${PORT}`)))
+    .catch((error) => {
+      console.error('STORE_INITIALIZATION_FAILED', error.message);
+      process.exitCode = 1;
+    });
 }
 
 module.exports = { server, store };
