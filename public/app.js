@@ -296,8 +296,13 @@ async function loadNotifications() {
   $('notifications').innerHTML = items.length ? items.slice(0, 20).map((item) => `<button class="management-card ${item.readAt ? '' : 'unread'}" data-notification="${escapeHtml(item.id)}"><div><small>${item.readAt ? '읽음' : '새 알림'}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p></div></button>`).join('') : '<p class="empty">새로운 알림이 없습니다.</p>';
   document.querySelectorAll('[data-notification]').forEach((button) => button.addEventListener('click', async () => { try { await api(`/api/v1/notifications/${button.dataset.notification}/read`, { method: 'POST' }); await loadNotifications(); } catch (error) { alert(error.message); } }));
 }
-async function loadTrust() { const { profile, nextLevel } = await api('/api/v1/me/trust'); $('trustSummary').innerHTML = `<div><small>신뢰등급</small><strong>${escapeHtml(profile.level)}</strong></div><div><small>신뢰점수</small><strong>${escapeHtml(profile.score)}점</strong></div><div><small>정상거래</small><strong>${escapeHtml(profile.completedTrades)}건</strong></div><div><small>다음등급</small><strong>${escapeHtml(nextLevel?.level || '최고등급')}</strong></div>`; }
-async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadNotifications(), loadTrust()]); }
+async function loadMyReports() {
+  const { items } = await api('/api/v1/me/reports');
+  const names = { received: '접수', reviewing: '검토중', closed: '처리완료' };
+  $('myReports').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(names[item.status] || item.status)} · ${item.targetType === 'product' ? '상품' : '거래'} 신고</small><h3>${escapeHtml(item.reason)}</h3><p>접수번호 ${escapeHtml(item.id)}</p></div></article>`).join('') : '<p class="empty">접수한 신고가 없습니다.</p>';
+}
+async function loadTrust() { const { profile, nextLevel } = await api('/api/v1/me/trust'); $('trustSummary').innerHTML = `<div><small>신뢰등급</small><strong>${escapeHtml(profile.level)}</strong></div><div><small>신뢰점수</small><strong>${escapeHtml(profile.score)}점</strong></div><div><small>정상거래</small><strong>${escapeHtml(profile.normalTradeCount)}건</strong></div><div><small>다음등급</small><strong>${escapeHtml(nextLevel?.level || '최고등급')}</strong></div>`; }
+async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadNotifications(), loadMyReports(), loadTrust()]); }
 function showManagement(type) {
   for (const name of ['Products', 'Favorites', 'Trades']) {
     const active = type === name.toLowerCase();
@@ -313,6 +318,15 @@ async function toggleFavorite() {
   product.isFavorite = !product.isFavorite;
   $('toggleFavorite').textContent = product.isFavorite ? '♥ 찜 해제' : '♡ 찜하기';
   await loadMyFavorites();
+}
+
+async function reportSelectedProduct() {
+  if (!state.user) return alert('Pi Testnet 로그인 후 신고할 수 있습니다.');
+  const product = state.selectedProduct; if (!product) return;
+  const reason = prompt('상품 신고 사유를 입력하세요'); if (!reason) return;
+  await api('/api/v1/reports', { method: 'POST', body: JSON.stringify({ targetType: 'product', targetId: product.id, reason }) });
+  alert('상품 신고가 접수됐습니다. 신고만으로 판매자 신뢰점수는 변경되지 않습니다.');
+  await Promise.all([loadMyReports(), loadNotifications()]);
 }
 
 async function loadChats() {
@@ -377,6 +391,7 @@ $('checklistPayment').addEventListener('click', () => runChecklistPayment().catc
 $('closeProductDetail').addEventListener('click', () => { $('productDetailPanel').classList.add('hidden'); state.selectedProduct = null; });
 $('startProductTrade').addEventListener('click', () => { if (state.selectedProduct) chooseTrade(state.selectedProduct.id).catch((error) => alert(error.message)); });
 $('toggleFavorite').addEventListener('click', () => toggleFavorite().catch((error) => alert(error.message)));
+$('reportProduct').addEventListener('click', () => reportSelectedProduct().catch((error) => alert(error.message)));
 $('refresh').addEventListener('click', () => loadProducts().catch((error) => alert(error.message)));
 $('searchForm').addEventListener('submit', (event) => { event.preventDefault(); const params = new URLSearchParams(); [['q', 'searchKeyword'], ['categoryId', 'searchCategory'], ['method', 'searchMethod'], ['minPrice', 'searchMin'], ['maxPrice', 'searchMax']].forEach(([key, id]) => { if ($(id).value) params.set(key, $(id).value); }); loadProducts(params.toString()).catch((error) => alert(error.message)); });
 $('clearSearch').addEventListener('click', () => { $('searchForm').reset(); loadProducts().catch((error) => alert(error.message)); });

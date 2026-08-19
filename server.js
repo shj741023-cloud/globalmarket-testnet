@@ -34,6 +34,7 @@ const { listUserRooms } = require('./lib/chat-view');
 const { checklistTrade } = require('./lib/checklist');
 const { publicProduct } = require('./lib/product-view');
 const { listFavoriteProductIds, addFavorite, removeFavorite } = require('./lib/favorites');
+const { assertReportTarget } = require('./lib/report-target');
 
 assertTestnetEnvironment();
 
@@ -287,6 +288,7 @@ async function handleApi(req, res, url) {
   if (method === 'POST' && pathname === '/api/v1/reports') {
     const reporterId = requireUserId(req, res); if (!reporterId) return;
     const body = await readJson(req);
+    assertReportTarget(store.state, reporterId, body.targetType, body.targetId);
     const report = createReport({ id: store.id('report'), reporterId, targetType: body.targetType, targetId: body.targetId, reason: body.reason, complexity: body.complexity });
     store.state.reports.push(report);
     notify(reporterId, 'report_received', '신고가 접수되었습니다', `접수번호 ${report.id}`, report.id);
