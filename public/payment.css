@@ -1,0 +1,31 @@
+.payment-result {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.payment-result.pending {
+  color: #5a4a16;
+  background: #fff4c7;
+  border: 1px solid #e6cf76;
+}
+
+.payment-result.success {
+  color: #174d35;
+  background: #e3f6eb;
+  border: 1px solid #83c9a2;
+}
+
+.payment-result.cancelled {
+  color: #5e5b52;
+  background: #f1f0eb;
+  border: 1px solid #d0cec3;
+}
+
+.payment-result.error {
+  color: #7a2626;
+  background: #fde7e7;
+  border: 1px solid #e1a1a1;
+}

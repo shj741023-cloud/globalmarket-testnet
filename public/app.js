@@ -282,6 +282,12 @@ function log(message, data) {
   $('log').textContent += `${new Date().toLocaleTimeString()} ${message}${data ? `\n${JSON.stringify(data, null, 2)}` : ''}\n`;
 }
 
+function showPaymentResult(type, message) {
+  const box = $('paymentResult');
+  box.className = `payment-result ${type}`;
+  box.textContent = message;
+}
+
 function renderQuote(quote) {
   $('quote').innerHTML = [
     ['상품금액', `${quote.productAmount} Test-Pi`], ['구매자 모의 수수료', `${quote.buyerFee} Test-Pi`],
@@ -588,6 +594,7 @@ async function sendMessage(event) { event.preventDefault(); if (!state.activeRoo
 
 async function preparePayment() {
   if (!state.trade || state.trade.type !== 'parcel_testnet') return;
+  showPaymentResult('pending', 'Test-Pi 결제를 준비하고 있습니다. Pi Wallet 안내를 따라주세요.');
   const { payment } = await api(`/api/v1/trades/${state.trade.id}/payments`, { method: 'POST' });
   state.payment = payment; log('서버 결제 준비 완료', payment);
   if (!window.Pi || !state.user) { log('Pi 로그인 후 실제 Sandbox 창을 열 수 있습니다. 현재는 서버 모의 준비까지만 완료했습니다.'); return; }
@@ -603,10 +610,14 @@ async function preparePayment() {
     },
     onReadyForServerCompletion: async (piPaymentId, txid) => {
       const result = await api(`/api/v1/payments/${payment.id}/complete`, { method: 'POST', body: JSON.stringify({ piPaymentId, txid }) });
+      state.payment = result.payment;
+      state.trade = result.trade;
       log('Test-Pi 결제 완료', result.payment);
+      showPaymentResult('success', `${payment.buyerTotal} Test-Pi 결제가 완료되었습니다. 거래 상태를 새로고침했습니다.`);
+      loadMyTrades().catch((error) => log(`내 거래 새로고침 실패: ${error.message}`));
     },
-    onCancel: (id) => log(`결제 취소: ${id}`),
-    onError: (error) => log(`Pi 오류: ${error.message || error}`)
+    onCancel: (id) => { log(`결제 취소: ${id}`); showPaymentResult('cancelled', 'Test-Pi 결제가 취소되었습니다. 자금은 이동하지 않았습니다.'); },
+    onError: (error) => { log(`Pi 오류: ${error.message || error}`); showPaymentResult('error', 'Test-Pi 결제를 완료하지 못했습니다. 잠시 후 다시 시도해주세요.'); }
   };
   await Pi.createPayment({ amount: payment.buyerTotal, memo: 'Global Market Testnet 기능시험', metadata: { tradeId: state.trade.id, internalPaymentId: payment.id, network: 'testnet' } }, callbacks);
 }
