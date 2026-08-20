@@ -24,6 +24,14 @@ test('전액 모의환불이 끝난 뒤에는 새 체크리스트 거래를 만�
   assert.equal(result.idempotent, false);
 });
 
+test('부분환불 뒤 구매확정 상태에서도 새 체크리스트 거래를 만든다', () => {
+  const previous = { ...checklistTrade([], 'buyer', { id: 'old' }).trade, status: 'purchase_confirmed' };
+  const result = checklistTrade([previous], 'buyer', { id: 'new' });
+  assert.equal(result.idempotent, false);
+  assert.equal(result.trade.id, 'new');
+  assert.equal(result.trade.status, 'payment_pending');
+});
+
 test('체크리스트 구매자만 배송 시뮬레이션을 실행할 수 있다', () => {
   const trade = checklistTrade([], 'buyer', { id: 'trade_1' }).trade;
   assert.equal(assertChecklistBuyer(trade, 'buyer'), true);
