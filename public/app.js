@@ -517,7 +517,12 @@ async function loadMyFavorites() {
 
 async function openTradeDetail(tradeId) {
   const detail = await api(`/api/v1/trades/${tradeId}`); const trade = detail.trade; state.trade = trade;
-  $('tradeDetailContent').innerHTML = `<p class="eyebrow">${trade.myRole === 'buyer' ? 'PURCHASE' : 'SALE'}</p><h3>${escapeHtml(detail.product?.title || '상품정보 없음')}</h3><div class="detail-grid"><p><small>거래상태</small><strong>${escapeHtml(statusNames[trade.status] || trade.status)}</strong></p><p><small>거래금액</small><strong>${escapeHtml(trade.amount)} Test-Pi</strong></p><p><small>거래방식</small><strong>${trade.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p><small>정산보류</small><strong>${trade.settlementHold ? '보류중' : '없음'}</strong></p></div>`;
+  const tradeTitle = detail.product?.title || (trade.purpose === 'pi_checklist' ? 'Testnet 기능시험' : '상품정보 없음');
+  const sentimentNames = { positive: '긍정', neutral: '보통', negative: '아쉬움' };
+  const reviewSection = detail.reviews.length
+    ? `<div class="section-title"><div><p class="eyebrow">TRADE REVIEWS</p><h3>이 거래의 후기</h3></div></div><div class="management-list">${detail.reviews.map((item) => `<article class="management-card"><div><small>${item.writerId === state.user.id ? '내가 작성한 후기' : '받은 후기'} · ${escapeHtml(sentimentNames[item.sentiment] || item.sentiment)}</small><p>${escapeHtml(item.comment || '내용 없음')}</p></div></article>`).join('')}</div>`
+    : '';
+  $('tradeDetailContent').innerHTML = `<p class="eyebrow">${trade.myRole === 'buyer' ? 'PURCHASE' : 'SALE'}</p><h3>${escapeHtml(tradeTitle)}</h3><div class="detail-grid"><p><small>거래상태</small><strong>${escapeHtml(statusNames[trade.status] || trade.status)}</strong></p><p><small>거래금액</small><strong>${escapeHtml(trade.amount)} Test-Pi</strong></p><p><small>거래방식</small><strong>${trade.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p><small>정산보류</small><strong>${trade.settlementHold ? '보류중' : '없음'}</strong></p></div>${reviewSection}`;
   const actions = [];
   if (trade.type === 'parcel_testnet' && trade.myRole === 'buyer' && trade.status === 'payment_pending') actions.push(['actionPay', 'Test-Pi 결제', 'primary']);
   if (trade.purpose === 'pi_checklist' && trade.myRole === 'buyer' && trade.status === 'shipping_pending') actions.push(['actionChecklistShip', 'Testnet 발송 처리', 'primary']);
