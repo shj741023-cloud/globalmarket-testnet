@@ -17,6 +17,13 @@ test('같은 사용자의 진행 중 체크리스트 거래를 중복 생성하�
   assert.equal(result.idempotent, true);
 });
 
+test('전액 모의환불이 끝난 뒤에는 새 체크리스트 거래를 만든다', () => {
+  const refunded = { ...checklistTrade([], 'buyer', { id: 'old' }).trade, status: 'mock_refunded' };
+  const result = checklistTrade([refunded], 'buyer', { id: 'new' });
+  assert.equal(result.trade.id, 'new');
+  assert.equal(result.idempotent, false);
+});
+
 test('체크리스트 구매자만 배송 시뮬레이션을 실행할 수 있다', () => {
   const trade = checklistTrade([], 'buyer', { id: 'trade_1' }).trade;
   assert.equal(assertChecklistBuyer(trade, 'buyer'), true);
