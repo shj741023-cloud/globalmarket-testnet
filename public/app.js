@@ -227,6 +227,18 @@ function renderAdminProducts(items) {
   $('adminProducts').querySelectorAll('[data-product-review]').forEach((button) => button.addEventListener('click', () => decideAdminProduct(button)));
 }
 
+async function loadAdminGasDebts() {
+  const { items } = await adminApi('/api/v1/admin/gas-debts?status=appeal_pending');
+  $('adminGasDebts').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>이의신청 검토 중</small><h3>${escapeHtml(item.outstandingAmount)} Pi</h3><p>${escapeHtml(item.appealReason)} · 미납번호 ${escapeHtml(item.id)}</p></div><div class="actions"><select data-debt-decision="${escapeHtml(item.id)}"><option value="uphold">미납 확정 유지</option><option value="adjust">금액 일부 조정</option><option value="cancel">미납 전액 취소</option></select><button class="primary" data-debt-decide="${escapeHtml(item.id)}">판정</button></div></article>`).join('') : '<p class="empty">검토할 미납 이의신청이 없습니다.</p>';
+  $('adminGasDebts').querySelectorAll('[data-debt-decide]').forEach((button) => button.addEventListener('click', async () => {
+    const id = button.dataset.debtDecide; const type = [...document.querySelectorAll('[data-debt-decision]')].find((item) => item.dataset.debtDecision === id)?.value;
+    const body = { type }; if (type === 'adjust') { const amount = prompt('조정할 미납 Pi 금액'); if (!amount) return; body.amount = Number(amount); }
+    const reason = prompt('판정 사유를 입력하세요'); if (!reason?.trim() || !confirm('이의신청 판정을 확정할까요?')) return; body.reason = reason.trim();
+    try { await adminApi(`/api/v1/admin/gas-debts/${id}/decision`, { method: 'POST', body: JSON.stringify(body) }); $('adminResult').textContent = '미납 이의신청 판정을 저장했습니다.'; await Promise.all([loadAdminGasDebts(), loadAdminAudit()]); } catch (error) { $('adminResult').textContent = error.message; }
+  }));
+  return items.length;
+}
+
 async function loadAdminProducts() {
   const { items } = await adminApi('/api/v1/admin/product-reviews');
   renderAdminProducts(items);
@@ -252,11 +264,12 @@ async function loadAdminDashboard() {
     ['users', summary.users.total, `회원 · 정지 ${summary.users.suspended}`],
     ['products', summary.products.reviewPending, '상품 검토 대기'],
     ['reports', summary.reports.open, '미처리 신고'],
-    ['disputes', summary.disputes.open, '미처리 분쟁']
+    ['disputes', summary.disputes.open, '미처리 분쟁'],
+    ['gasDebts', summary.gasDebts.appealPending, '미납 이의신청']
   ];
   $('adminDashboard').innerHTML = cards.map(([section, count, label]) => `<button type="button" data-admin-go="${section}"><strong>${escapeHtml(count)}</strong><small>${escapeHtml(label)}</small></button>`).join('');
   $('adminDashboard').querySelectorAll('[data-admin-go]').forEach((button) => button.addEventListener('click', () => {
-    const targets = { users: 'showAdminUsers', products: 'showAdminProducts', reports: 'showAdminReports', disputes: 'showAdminDisputes' };
+    const targets = { users: 'showAdminUsers', products: 'showAdminProducts', reports: 'showAdminReports', disputes: 'showAdminDisputes', gasDebts: 'showAdminGasDebts' };
     $(targets[button.dataset.adminGo]).click();
   }));
 }
@@ -266,16 +279,19 @@ function showAdminSection(name) {
   const products = name === 'products';
   const reports = name === 'reports';
   const disputes = name === 'disputes';
+  const gasDebts = name === 'gasDebts';
   $('adminUsers').classList.toggle('hidden', !users);
   $('adminProducts').classList.toggle('hidden', !products);
   $('adminReports').classList.toggle('hidden', !reports);
   $('adminDisputes').classList.toggle('hidden', !disputes);
+  $('adminGasDebts').classList.toggle('hidden', !gasDebts);
   $('adminAudit').classList.toggle('hidden', name !== 'audit');
   $('adminSearchForm').classList.toggle('hidden', !users);
   $('showAdminUsers').classList.toggle('active', users);
   $('showAdminProducts').classList.toggle('active', products);
   $('showAdminReports').classList.toggle('active', reports);
   $('showAdminDisputes').classList.toggle('active', disputes);
+  $('showAdminGasDebts').classList.toggle('active', gasDebts);
   $('showAdminAudit').classList.toggle('active', name === 'audit');
   if (state.adminKey) loadAdminDashboard().catch((error) => { $('adminResult').textContent = error.message; });
 }
@@ -694,7 +710,7 @@ $('navRegister').addEventListener('click', () => { if (!state.user) return alert
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('chatPanel').classList.remove('hidden'); loadChats().then(() => $('chatPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('myPanel').classList.remove('hidden'); loadMyMarket().then(() => $('myPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
 $('openAdmin').addEventListener('click', () => { $('adminPanel').classList.remove('hidden'); $('adminPanel').scrollIntoView({ behavior: 'smooth' }); });
-$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminProducts').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
+$('closeAdmin').addEventListener('click', () => { state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminProducts').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminGasDebts').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
 $('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { const [, reportCount] = await Promise.all([loadAdminUsers(), loadAdminReports()]); $('adminUnlockForm').classList.add('hidden'); $('adminWorkspace').classList.remove('hidden'); showAdminSection('users'); $('adminKey').value = ''; $('adminResult').textContent = `관리자 확인 완료 · 접수된 신고 ${reportCount}건`; } catch (error) { state.adminKey = null; $('adminResult').textContent = error.message; } });
 $('adminSearchForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await loadAdminUsers(); } catch (error) { $('adminResult').textContent = error.message; } });
 $('clearAdminSearch').addEventListener('click', () => { $('adminUserQuery').value = ''; $('adminUserStatus').value = ''; loadAdminUsers().catch((error) => { $('adminResult').textContent = error.message; }); });
@@ -702,6 +718,7 @@ $('showAdminUsers').addEventListener('click', () => showAdminSection('users'));
 $('showAdminProducts').addEventListener('click', () => { showAdminSection('products'); loadAdminProducts().then((count) => { $('adminResult').textContent = `상품 검토 대기 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminReports').addEventListener('click', () => { showAdminSection('reports'); loadAdminReports().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminDisputes').addEventListener('click', () => { showAdminSection('disputes'); loadAdminDisputes().then((count) => { $('adminResult').textContent = `택배 안전거래 분쟁 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
+$('showAdminGasDebts').addEventListener('click', () => { showAdminSection('gasDebts'); loadAdminGasDebts().then((count) => { $('adminResult').textContent = `미납 이의신청 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminAudit').addEventListener('click', () => { showAdminSection('audit'); loadAdminAudit().then((count) => { $('adminResult').textContent = `안전하게 정리된 작업기록 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('productForm').addEventListener('submit', registerProduct);
 $('productImage').addEventListener('change', () => prepareSelectedImages('productImage', 'registerProductImages', 'registerImages', 'registerResult'));

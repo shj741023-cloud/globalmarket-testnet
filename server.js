@@ -52,7 +52,7 @@ const { adminDashboardSummary } = require('./lib/admin-dashboard');
 const { adminKeyMatches, requestIdentity } = require('./lib/admin-auth');
 const { adminReportSummary, adminReportSummaries } = require('./lib/admin-reports');
 const { securityHeaders } = require('./lib/security-headers');
-const { assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt } = require('./lib/trading-restrictions');
+const { assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt, decideGasDebtAppeal } = require('./lib/trading-restrictions');
 
 assertTestnetEnvironment();
 
@@ -906,6 +906,22 @@ async function handleApi(req, res, url) {
     if (!requireTestAdmin(req, res)) return;
     const query = Object.fromEntries(url.searchParams.entries());
     return sendJson(res, 200, { ok: true, items: adminDisputeSummaries(store.state, query), filters: query });
+  }
+  if (method === 'GET' && pathname === '/api/v1/admin/gas-debts') {
+    if (!requireTestAdmin(req, res)) return;
+    const status = url.searchParams.get('status');
+    const items = store.state.gasDebts.filter((item) => !status || item.status === status).slice().reverse();
+    return sendJson(res, 200, { ok: true, items });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/gas-debts\/([^/]+)\/decision$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const debt = store.state.gasDebts.find((item) => item.id === match[1]); if (!findOr404(res, debt, 'gas debt')) return;
+    const body = await readJson(req); const before = structuredClone(debt);
+    decideGasDebtAppeal(debt, { ...body, adminId: testAdminId(req) });
+    recordAudit(req, 'GAS_DEBT_APPEAL_DECIDED', 'gas_debt', debt.id, body.reason, before, debt);
+    notify(debt.userId, 'gas_debt_appeal_decided', '가스비 미납 이의신청 판정이 완료되었습니다', `${body.reason} · 남은 미납금 ${debt.outstandingAmount} Pi`, debt.id);
+    await store.save(); return sendJson(res, 200, { ok: true, debt });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/product-reviews') {
     if (!requireTestAdmin(req, res)) return;

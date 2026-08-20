@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { activeTradingDebt, assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt } = require('../lib/trading-restrictions');
+const { activeTradingDebt, assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt, decideGasDebtAppeal } = require('../lib/trading-restrictions');
 
 test('확정 미납금은 48시간 이의신청 기간 후 전체 거래를 차단한다', () => {
   const now = new Date('2026-08-20T00:00:00Z');
@@ -32,4 +32,14 @@ test('타인의 미납금 처리와 기한 후 이의신청을 차단한다', ()
   const debt = createGasDebt({ id: 'debt1', userId: 'seller1', refundId: 'refund1', amount: 0.01 }, new Date('2026-08-20T00:00:00Z'));
   assert.throws(() => mockPayGasDebt(debt, 'other'), (error) => error.code === 'GAS_DEBT_OWNER_REQUIRED');
   assert.throws(() => appealGasDebt(debt, 'seller1', '늦은 신청', new Date('2026-08-23T00:00:00Z')), (error) => error.code === 'GAS_DEBT_APPEAL_EXPIRED');
+});
+
+test('관리자는 이의신청 미납금을 유지·조정·취소할 수 있다', () => {
+  const make = () => { const debt = createGasDebt({ id: 'd', userId: 'u', refundId: 'r', amount: 0.03 }, new Date('2026-08-20')); appealGasDebt(debt, 'u', '재검토', new Date('2026-08-21')); return debt; };
+  const adjusted = decideGasDebtAppeal(make(), { type: 'adjust', amount: 0.01, reason: '일부 조정', adminId: 'admin' }, new Date('2026-08-21T01:00:00Z'));
+  assert.equal(adjusted.status, 'confirmed_unpaid'); assert.equal(adjusted.outstandingAmount, 0.01);
+  const cancelled = decideGasDebtAppeal(make(), { type: 'cancel', reason: '책임 없음', adminId: 'admin' });
+  assert.equal(cancelled.status, 'cancelled'); assert.equal(cancelled.outstandingAmount, 0);
+  const upheld = decideGasDebtAppeal(make(), { type: 'uphold', reason: '원판정 유지', adminId: 'admin' });
+  assert.equal(upheld.status, 'confirmed_unpaid'); assert.equal(upheld.outstandingAmount, 0.03);
 });
