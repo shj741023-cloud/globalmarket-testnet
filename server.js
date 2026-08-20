@@ -836,7 +836,7 @@ async function handleApi(req, res, url) {
     if (existingRefund) return sendJson(res, 200, { ok: true, trade, refund: existingRefund, idempotent: true });
     const dispute = store.state.disputes.find((item) => item.tradeId === trade.id && item.status !== 'closed');
     if (!findOr404(res, dispute, 'open dispute')) return;
-    const result = createMockRefund(trade, dispute, { type: 'full_refund', reason: 'Testnet 체크리스트 전액 모의환불' }, store.id('refund'));
+    const result = createMockRefund(trade, dispute, { type: 'full_refund', faultType: 'seller_fault', reason: 'Testnet 체크리스트 전액 모의환불' }, store.id('refund'));
     store.state.refunds.push(result.refund);
     store.event('PI_CHECKLIST_FULL_REFUND_COMPLETED', result.refund.id); await store.save();
     return sendJson(res, 201, { ok: true, trade, dispute, refund: result.refund });
@@ -851,7 +851,7 @@ async function handleApi(req, res, url) {
     const dispute = store.state.disputes.find((item) => item.tradeId === trade.id && item.status !== 'closed');
     if (!findOr404(res, dispute, 'open dispute')) return;
     const retainedAmount = Math.round((trade.amount / 2) * 10000000) / 10000000;
-    const result = createMockRefund(trade, dispute, { type: 'partial_refund', retainedAmount, reason: 'Testnet 체크리스트 절반 부분환불' }, store.id('refund'));
+    const result = createMockRefund(trade, dispute, { type: 'partial_refund', retainedAmount, faultType: 'seller_fault', reason: 'Testnet 체크리스트 절반 부분환불' }, store.id('refund'));
     store.state.refunds.push(result.refund);
     store.event('PI_CHECKLIST_PARTIAL_REFUND_COMPLETED', result.refund.id); await store.save();
     return sendJson(res, 201, { ok: true, trade, dispute, refund: result.refund });

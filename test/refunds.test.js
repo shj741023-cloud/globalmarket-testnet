@@ -60,7 +60,7 @@ test('종료된 분쟁을 다시 판정하지 않는다', () => {
 test('전액 모의환불 기록에는 구매자 수수료 환불을 포함한다', () => {
   const trade = { id: 't1', type: 'parcel_testnet', amount: 0.01, status: 'disputed', settlementHold: true };
   const dispute = { id: 'd1', tradeId: 't1', status: 'received', settlementHold: true };
-  const result = createMockRefund(trade, dispute, { type: 'full_refund', reason: '시험' }, 'r1', new Date('2026-08-20T00:00:00Z'));
+  const result = createMockRefund(trade, dispute, { type: 'full_refund', faultType: 'seller_fault', reason: '시험' }, 'r1', new Date('2026-08-20T00:00:00Z'));
   assert.equal(result.refund.totalBuyerRefund, 0.0101);
   assert.equal(result.refund.status, 'mock_completed');
 });
@@ -68,7 +68,7 @@ test('전액 모의환불 기록에는 구매자 수수료 환불을 포함한�
 test('절반 부분환불은 남은 금액과 환불액을 정확히 기록한다', () => {
   const trade = { id: 't1', type: 'parcel_testnet', amount: 0.01, status: 'disputed', settlementHold: true };
   const dispute = { id: 'd1', tradeId: 't1', status: 'received', settlementHold: true };
-  const result = createMockRefund(trade, dispute, { type: 'partial_refund', retainedAmount: 0.005, reason: '시험' }, 'r1');
+  const result = createMockRefund(trade, dispute, { type: 'partial_refund', retainedAmount: 0.005, faultType: 'seller_fault', reason: '시험' }, 'r1');
   assert.equal(result.refund.retainedAmount, 0.005);
   assert.equal(result.refund.totalBuyerRefund, 0.00505);
   assert.equal(trade.status, 'purchase_confirmed');

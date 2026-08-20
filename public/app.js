@@ -174,6 +174,7 @@ async function loadAdminAudit() {
 }
 
 const disputeDecisionNames = { full_refund: 'Test-Pi 전액 모의환불', partial_refund: 'Test-Pi 부분 모의환불', release_settlement: '판매자 모의정산 진행' };
+const faultNames = { seller_fault: '판매자 과실', buyer_fault: '구매자 과실', shared_fault: '공동 과실', platform_fault: '플랫폼 과실' };
 
 function renderAdminDisputes(items) {
   $('adminDisputes').innerHTML = items.length ? items.map((item) => `
@@ -181,7 +182,7 @@ function renderAdminDisputes(items) {
       <div><strong>${escapeHtml(item.productTitle)}</strong><p class="meta">분쟁 ${escapeHtml(item.id)} · ${item.status === 'closed' ? '처리 완료' : '접수'}</p></div>
       <p>${escapeHtml(item.reason)}</p><p class="meta">거래 ${escapeHtml(item.tradeId)} · ${escapeHtml(item.amount)} Test-Pi · ${item.settlementHold ? '정산 보류 중' : '정산 보류 해제'}</p>
       ${item.decision ? `<p class="admin-decision"><strong>${escapeHtml(disputeDecisionNames[item.decision.type] || item.decision.type)}</strong> · ${escapeHtml(item.decision.reason)}</p>` : ''}
-      ${item.status !== 'closed' ? `<div class="actions"><select data-dispute-type="${escapeHtml(item.id)}"><option value="full_refund">전액 모의환불</option><option value="partial_refund">부분 모의환불</option><option value="release_settlement">판매자 모의정산 진행</option></select><button class="primary" data-dispute-decide="${escapeHtml(item.id)}">분쟁 판정</button></div>` : ''}
+      ${item.status !== 'closed' ? `<div class="actions"><select data-dispute-type="${escapeHtml(item.id)}"><option value="full_refund">전액 모의환불</option><option value="partial_refund">부분 모의환불</option><option value="release_settlement">판매자 모의정산 진행</option></select><select data-dispute-fault="${escapeHtml(item.id)}"><option value="seller_fault">판매자 과실</option><option value="buyer_fault">구매자 과실</option><option value="shared_fault">공동 과실</option><option value="platform_fault">플랫폼 과실</option></select><button class="primary" data-dispute-decide="${escapeHtml(item.id)}">분쟁 판정</button></div>` : ''}
     </article>`).join('') : '<p class="empty">조건에 맞는 택배 안전거래 분쟁이 없습니다.</p>';
   $('adminDisputes').querySelectorAll('[data-dispute-decide]').forEach((button) => button.addEventListener('click', () => decideAdminDispute(button.dataset.disputeDecide)));
 }
@@ -194,8 +195,9 @@ async function loadAdminDisputes() {
 
 async function decideAdminDispute(disputeId) {
   const type = [...document.querySelectorAll('[data-dispute-type]')].find((item) => item.dataset.disputeType === disputeId)?.value;
+  const faultType = [...document.querySelectorAll('[data-dispute-fault]')].find((item) => item.dataset.disputeFault === disputeId)?.value;
   if (!type) return;
-  const body = { type };
+  const body = { type, faultType };
   if (type === 'partial_refund') {
     const retainedAmount = prompt('판매자에게 남길 Test-Pi 금액을 입력하세요.');
     if (retainedAmount === null || retainedAmount.trim() === '') return;
@@ -205,7 +207,7 @@ async function decideAdminDispute(disputeId) {
   const reason = prompt('분쟁 판정 사유를 입력하세요. 신청자에게 안내됩니다.');
   if (!reason?.trim()) return;
   body.reason = reason.trim();
-  if (!confirm(`${disputeDecisionNames[type]}으로 처리할까요? 실제 Pi가 이동하지 않는 Testnet 모의처리입니다.`)) return;
+  if (!confirm(`${disputeDecisionNames[type]} · ${faultNames[faultType] || '과실 판정 없음'}으로 처리할까요? 가스비 부담액이 과실에 따라 자동 계산됩니다. 실제 Pi가 이동하지 않는 Testnet 모의처리입니다.`)) return;
   try {
     await adminApi(`/api/v1/admin/disputes/${encodeURIComponent(disputeId)}/decision`, { method: 'POST', body: JSON.stringify(body) });
     $('adminResult').textContent = 'Testnet 분쟁 판정을 저장했습니다. 실제 Pi는 이동하지 않았습니다.';
@@ -517,7 +519,8 @@ async function openTradeDetail(tradeId) {
     ? `<div class="section-title"><div><p class="eyebrow">TRADE REVIEWS</p><h3>이 거래의 후기</h3></div></div><div class="management-list">${detail.reviews.map((item) => `<article class="management-card"><div><small>${item.writerId === state.user.id ? '내가 작성한 후기' : '받은 후기'} · ${escapeHtml(sentimentNames[item.sentiment] || item.sentiment)}</small><p>${escapeHtml(item.comment || '내용 없음')}</p></div></article>`).join('')}</div>`
     : '';
   const settlementSection = detail.settlement ? `<div class="detail-grid"><p><small>Testnet 정산상태</small><strong>모의정산 완료</strong></p><p><small>판매자 모의정산액</small><strong>${escapeHtml(detail.settlement.netAmount)} Test-Pi</strong></p></div>` : '';
-  const refundSection = detail.refund ? `<div class="detail-grid"><p><small>Testnet 환불상태</small><strong>${detail.refund.type === 'partial' ? '부분 모의환불 완료' : '전액 모의환불 완료'}</strong></p><p><small>가스비 부담 확정 전 환불액</small><strong>${escapeHtml(detail.refund.totalBuyerRefundBeforeGasAllocation ?? detail.refund.totalBuyerRefund)} Test-Pi</strong></p>${detail.refund.type === 'partial' ? `<p><small>판매자에게 남은 금액</small><strong>${escapeHtml(detail.refund.retainedAmount)} Test-Pi</strong></p>` : ''}<p><small>최초 결제 가스비</small><strong>0.01 Pi · 반환 불가</strong></p><p><small>환불 송금 예상 가스비</small><strong>${escapeHtml(detail.refund.refundTransferGasFee ?? 0.01)} Pi</strong></p>${detail.refund.type === 'partial' ? `<p><small>판매자 정산 예상 가스비</small><strong>${escapeHtml(detail.refund.settlementTransferGasFee ?? 0.01)} Pi</strong></p>` : ''}</div><p class="form-notice"><strong>가스비 안내:</strong> 표시된 환불액은 가스비 부담 주체를 판정하기 전 금액입니다. Pi 온체인 가스비는 별도로 발생하며 최초 결제 가스비는 환불되지 않습니다.</p>` : '';
+  const liability = detail.refund?.gasLiability;
+  const refundSection = detail.refund ? `<div class="detail-grid"><p><small>Testnet 환불상태</small><strong>${detail.refund.type === 'partial' ? '부분 모의환불 완료' : '전액 모의환불 완료'}</strong></p><p><small>과실 판정</small><strong>${escapeHtml(faultNames[liability?.faultType] || '정책 판정 필요')}</strong></p><p><small>구매자 최종 모의환불액</small><strong>${escapeHtml(liability?.buyerFinalRefund ?? detail.refund.totalBuyerRefund)} Test-Pi</strong></p>${detail.refund.type === 'partial' ? `<p><small>판매자 최종 모의정산액</small><strong>${escapeHtml(liability?.sellerFinalSettlement ?? detail.refund.retainedAmount)} Test-Pi</strong></p>` : ''}<p><small>구매자 가스비 부담</small><strong>${escapeHtml(liability?.buyerGasLiability ?? 0)} Pi</strong></p><p><small>판매자 가스비 부담</small><strong>${escapeHtml(liability?.sellerGasLiability ?? 0)} Pi</strong></p><p><small>플랫폼 가스비 부담</small><strong>${escapeHtml(liability?.platformGasLiability ?? 0)} Pi</strong></p></div><p class="form-notice"><strong>가스비 안내:</strong> 최초 결제·환불·정산 가스비를 과실 판정에 따라 계산한 Testnet 모의 결과입니다.</p>` : '';
   $('tradeDetailContent').innerHTML = `<p class="eyebrow">${trade.myRole === 'buyer' ? 'PURCHASE' : 'SALE'}</p><h3>${escapeHtml(tradeTitle)}</h3><div class="detail-grid"><p><small>거래상태</small><strong>${escapeHtml(statusNames[trade.status] || trade.status)}</strong></p><p><small>거래금액</small><strong>${escapeHtml(trade.amount)} Test-Pi</strong></p><p><small>거래방식</small><strong>${trade.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p><small>정산보류</small><strong>${trade.settlementHold ? '보류중' : '없음'}</strong></p></div>${settlementSection}${refundSection}${reviewSection}`;
   const actions = [];
   if (trade.type === 'parcel_testnet' && trade.myRole === 'buyer' && trade.status === 'payment_pending') actions.push(['actionPay', 'Test-Pi 결제', 'primary']);
