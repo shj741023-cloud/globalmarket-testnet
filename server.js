@@ -176,6 +176,20 @@ function recordAudit(req, action, targetType, targetId, reason, before, after) {
   return entry;
 }
 
+function applySettlementDebtOffsets(trade, settlement) {
+  const offset = offsetDebts(store.state.gasDebts, trade.sellerId, settlement.netAmount);
+  settlement.debtOffsetAmount = offset.offsetAmount; settlement.netAmount = offset.sellerNetAmount; settlement.debtAllocations = offset.allocations;
+  for (const allocation of offset.allocations) {
+    const refund = store.state.refunds.find((item) => item.id === allocation.refundId); const sourceTrade = refund && store.findTrade(refund.tradeId);
+    const claim = Number(refund?.gasLiability?.buyerGasCompensationClaim || 0); if (!sourceTrade || claim <= 0) continue;
+    let item = store.state.gasCompensations.find((candidate) => candidate.refundId === refund.id);
+    if (!item) { item = createCompensation({ id:store.id('gas_compensation'), buyerId:sourceTrade.buyerId, refundId:refund.id, debtId:allocation.debtId, confirmedAmount:claim, recoveredAmount:allocation.amount }); store.state.gasCompensations.push(item); }
+    else { item.recoveredAmount=Math.min(item.confirmedAmount,item.recoveredAmount+allocation.amount); item.unrecoveredAmount=Math.max(0,item.confirmedAmount-item.recoveredAmount); item.currentlyPayableAmount=item.recoveredAmount; }
+  }
+  notify(trade.sellerId,'settlement_debt_offset','정산금에서 미납금이 우선 차감되었습니다',`차감 ${offset.offsetAmount} Pi · 최종 정산 ${offset.sellerNetAmount} Pi`,settlement.id);
+  return offset;
+}
+
 function findOr404(res, item, type) {
   if (item) return true;
   apiError(res, 404, `${type.toUpperCase()}_NOT_FOUND`, `${type} not found`);
@@ -714,9 +728,7 @@ async function handleApi(req, res, url) {
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
     const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement') });
     if (!result.idempotent) {
-      const offset=offsetDebts(store.state.gasDebts,trade.sellerId,result.settlement.netAmount); result.settlement.debtOffsetAmount=offset.offsetAmount; result.settlement.netAmount=offset.sellerNetAmount; result.settlement.debtAllocations=offset.allocations;
-      for(const allocation of offset.allocations){const refund=store.state.refunds.find(i=>i.id===allocation.refundId);const sourceTrade=refund&&store.findTrade(refund.tradeId);const claim=Number(refund?.gasLiability?.buyerGasCompensationClaim||0);if(sourceTrade&&claim>0){let item=store.state.gasCompensations.find(i=>i.refundId===refund.id);if(!item){item=createCompensation({id:store.id('gas_compensation'),buyerId:sourceTrade.buyerId,refundId:refund.id,debtId:allocation.debtId,confirmedAmount:claim,recoveredAmount:allocation.amount});store.state.gasCompensations.push(item);}else{item.recoveredAmount=Math.min(item.confirmedAmount,item.recoveredAmount+allocation.amount);item.unrecoveredAmount=Math.max(0,item.confirmedAmount-item.recoveredAmount);item.currentlyPayableAmount=item.recoveredAmount;}}}
-      notify(trade.sellerId,'settlement_debt_offset','정산금에서 미납금이 우선 차감되었습니다',`차감 ${offset.offsetAmount} Pi · 최종 정산 ${offset.sellerNetAmount} Pi`,result.settlement.id); store.event('MOCK_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
+      applySettlementDebtOffsets(trade, result.settlement); store.event('MOCK_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
     }
     return sendJson(res, result.idempotent ? 200 : 201, { ok: true, ...result });
   }
@@ -728,6 +740,7 @@ async function handleApi(req, res, url) {
     const partialRefund = store.state.refunds.find((item) => item.tradeId === trade.id && item.type === 'partial');
     const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement'), grossAmount: partialRefund?.retainedAmount });
     if (!result.idempotent) {
+      applySettlementDebtOffsets(trade, result.settlement);
       trade.status = 'completed'; trade.completedAt = result.settlement.completedAt;
       store.event('PI_CHECKLIST_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
     }
@@ -885,7 +898,7 @@ async function handleApi(req, res, url) {
     if (refund) {
       store.state.refunds.push(refund);
       const outstanding = Number(refund.gasLiability?.sellerOutstandingGas || 0);
-      if (outstanding > 0 && trade.sellerId !== 'testnet_checklist_harness') {
+      if (outstanding > 0) {
         const debt = createGasDebt({ id: store.id('gas_debt'), userId: trade.sellerId, refundId: refund.id, amount: outstanding });
         store.state.gasDebts.push(debt);
         notify(trade.sellerId, 'gas_debt_confirmed', '가스비 미납금이 확정되었습니다', `${debt.outstandingAmount} Pi · 이의신청 기한 ${debt.appealDeadline}`, debt.id);
