@@ -38,6 +38,21 @@ test('완료된 결제는 Pi 서버 승인을 다시 요청하지 않는다', ()
   assert.equal(result.providerRetryRequired, false);
 });
 
+test('만료 후 새 Pi 결제 ID가 오면 미완료 내부 승인을 교체한다', () => {
+  const payment = { id: 'p1', status: 'approved', providerPaymentId: 'pi_old', txid: null };
+  const result = approvePayment(payment, [payment], 'pi_new');
+  assert.equal(result.replacedProviderPaymentId, 'pi_old');
+  assert.equal(payment.providerPaymentId, 'pi_new');
+  assert.equal(payment.status, 'approved');
+  assert.equal(result.providerRetryRequired, true);
+});
+
+test('완료된 결제의 Pi 결제 ID는 교체하지 않는다', () => {
+  const payment = { id: 'p1', status: 'completed', providerPaymentId: 'pi_old', txid: 'tx1' };
+  assert.throws(() => approvePayment(payment, [payment], 'pi_new'), /Prepared payment is required/);
+  assert.equal(payment.providerPaymentId, 'pi_old');
+});
+
 test('서버 승인 전에는 결제를 완료하지 않는다', () => {
   const trade = parcelTrade(); const payment = { id: 'p1', status: 'prepared', providerPaymentId: null };
   assert.throws(() => completePayment(payment, [payment], trade, 'tx1'), /approval is required/);

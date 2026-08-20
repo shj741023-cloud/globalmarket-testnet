@@ -590,7 +590,7 @@ async function handleApi(req, res, url) {
     }
     console.log('PI_PAYMENT_APPROVAL_SUCCEEDED', payment.id);
     if (!stateResult.idempotent) {
-      store.event('PAYMENT_APPROVED', payment.id);
+      store.event('PAYMENT_APPROVED', payment.id, { replacedExpiredProviderPayment: Boolean(stateResult.replacedProviderPaymentId) });
       await store.save();
     }
     return sendJson(res, 200, { ok: true, payment, provider: piResult, idempotent: stateResult.idempotent });
