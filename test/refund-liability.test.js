@@ -4,12 +4,17 @@ const assert = require('node:assert/strict');
 const { refundQuote } = require('../lib/refunds');
 const { calculateGasLiability } = require('../lib/refund-liability');
 
-test('판매자 과실 전액환불은 판매자가 가스비를 부담하고 구매자 최초 가스비를 보전한다', () => {
+test('판매자 과실 가스비 보상은 회수 전 환불액에 합산하지 않는다', () => {
   const result = calculateGasLiability(refundQuote(1, 0), 'seller_fault');
   assert.equal(result.buyerGasLiability, 0);
   assert.equal(result.sellerGasLiability, 0.02);
   assert.equal(result.buyerOriginalGasReimbursement, 0.01);
-  assert.equal(result.buyerFinalRefund, 1.02);
+  assert.equal(result.buyerBaseRefund, 1.01);
+  assert.equal(result.buyerGasCompensationClaim, 0.01);
+  assert.equal(result.buyerGasCompensationPaid, 0);
+  assert.equal(result.gasCompensationStatus, 'pending_recovery');
+  assert.equal(result.buyerFinalRefund, 1.01);
+  assert.equal(result.buyerPotentialTotalAfterGasCompensation, 1.02);
 });
 
 test('구매자 과실 부분환불은 구매자가 세 건의 가스비를 부담한다', () => {
@@ -17,6 +22,8 @@ test('구매자 과실 부분환불은 구매자가 세 건의 가스비를 부�
   assert.equal(result.buyerGasLiability, 0.03);
   assert.equal(result.buyerFutureGasCharge, 0.02);
   assert.equal(result.buyerFinalRefund, 0.485);
+  assert.equal(result.buyerGasCompensationClaim, 0);
+  assert.equal(result.gasCompensationStatus, 'not_applicable');
   assert.equal(result.sellerFinalSettlement, 0.495);
 });
 
