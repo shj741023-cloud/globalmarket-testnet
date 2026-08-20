@@ -32,7 +32,7 @@ const { assertTradeParty, assertTradeBuyer, assertTradeSeller } = require('./lib
 const { listUserTrades, tradeSnapshot } = require('./lib/trade-view');
 const { listUserRooms } = require('./lib/chat-view');
 const { checklistTrade, assertChecklistBuyer } = require('./lib/checklist');
-const { userReviews } = require('./lib/review-view');
+const { userReviews, sellerReviews } = require('./lib/review-view');
 const { publicProduct } = require('./lib/product-view');
 const { listFavoriteProductIds, addFavorite, removeFavorite } = require('./lib/favorites');
 const { assertReportTarget } = require('./lib/report-target');
@@ -286,6 +286,11 @@ async function handleApi(req, res, url) {
   }
   if (method === 'GET' && pathname === '/api/v1/categories') {
     return sendJson(res, 200, { ok: true, items: CATEGORIES });
+  }
+  match = pathname.match(/^\/api\/v1\/products\/([^/]+)\/reviews$/);
+  if (method === 'GET' && match) {
+    const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
+    return sendJson(res, 200, { ok: true, items: sellerReviews(store.state, product.sellerId) });
   }
   if (method === 'GET' && pathname === '/api/v1/me/products') {
     const sellerId = requireUserId(req, res); if (!sellerId) return;

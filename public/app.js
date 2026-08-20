@@ -324,7 +324,7 @@ async function loadCategories() {
   $('searchCategory').innerHTML = '<option value="">전체 카테고리</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
 }
 
-function openProductDetail(productId) {
+async function openProductDetail(productId) {
   const product = state.products.find((item) => item.id === productId);
   if (!product) return;
   state.selectedProduct = product;
@@ -339,9 +339,15 @@ function openProductDetail(productId) {
   $('productDetailMeta').textContent = `${product.region} · Testnet 기능시험 상품`;
   $('productDetailSeller').innerHTML = `<small>판매자</small><strong>${escapeHtml(product.seller?.username || 'Pi 사용자')}</strong><span>${escapeHtml(product.seller?.trustLevel || 'Bronze')} · 정상거래 ${escapeHtml(product.seller?.normalTradeCount || 0)}건</span>`;
   $('productDetailMethods').innerHTML = product.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('');
+  $('productDetailReviews').innerHTML = '<p class="empty">후기를 불러오는 중입니다.</p>';
   $('toggleFavorite').textContent = product.isFavorite ? '♥ 찜 해제' : '♡ 찜하기';
   $('productDetailPanel').classList.remove('hidden');
   $('productDetailPanel').scrollIntoView({ behavior: 'smooth' });
+  try {
+    const { items } = await api(`/api/v1/products/${encodeURIComponent(product.id)}/reviews`);
+    const sentimentNames = { positive: '긍정', neutral: '보통', negative: '아쉬움' };
+    $('productDetailReviews').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(sentimentNames[item.sentiment] || item.sentiment)} · ${escapeHtml(item.writerName)}</small><p>${escapeHtml(item.comment || '내용 없음')}</p></div></article>`).join('') : '<p class="empty">아직 등록된 판매자 후기가 없습니다.</p>';
+  } catch (error) { $('productDetailReviews').innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`; }
 }
 
 async function registerProduct(event) {

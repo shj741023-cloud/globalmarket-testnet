@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { userReviews } = require('../lib/review-view');
+const { userReviews, sellerReviews } = require('../lib/review-view');
 
 test('사용자가 작성하거나 받은 후기만 최신순으로 보여준다', () => {
   const state = {
@@ -19,4 +19,19 @@ test('사용자가 작성하거나 받은 후기만 최신순으로 보여준다
   assert.equal(items[0].direction, 'received');
   assert.equal(items[1].direction, 'written');
   assert.equal(items[0].productTitle, '중고 카메라');
+});
+
+test('상품 상세에는 판매자가 받은 후기만 공개한다', () => {
+  const state = {
+    users: [{ id: 'buyer', username: '구매자' }],
+    reviews: [
+      { writerId: 'buyer', targetUserId: 'seller', sentiment: 'positive', comment: '친절해요', createdAt: '2026-08-20T02:00:00Z' },
+      { writerId: 'seller', targetUserId: 'buyer', sentiment: 'neutral', comment: '다른 후기', createdAt: '2026-08-20T03:00:00Z' }
+    ]
+  };
+  const items = sellerReviews(state, 'seller');
+  assert.equal(items.length, 1);
+  assert.equal(items[0].comment, '친절해요');
+  assert.equal(items[0].writerName, '구매자');
+  assert.equal(items[0].targetUserId, undefined);
 });
