@@ -20,7 +20,7 @@ const {
   confirmPurchase,
   autoConfirmDue
 } = require('./lib/workflow');
-const { refundQuote, decideDispute } = require('./lib/refunds');
+const { refundQuote, createMockRefund } = require('./lib/refunds');
 const { ensureProfile, applyTrustEvent, nextLevel } = require('./lib/trust');
 const { createSession, pruneSessions, enforceSessionLimit, sessionUserId, sessionUserIdFromToken, revokeSession, sessionCookie, clearSessionCookie } = require('./lib/auth');
 const { CATEGORIES, validateProductInput, searchProducts, updateOwnedProduct, changeOwnedProductStatus } = require('./lib/products');
@@ -818,21 +818,27 @@ async function handleApi(req, res, url) {
     const body = await readJson(req);
     if (!body.reason) return apiError(res, 400, 'DECISION_REASON_REQUIRED', 'reason is required');
     const before = structuredClone(dispute);
-    const result = decideDispute(trade, dispute, body);
-    let refund = null;
-    if (result.quote) {
-      refund = {
-        id: store.id('refund'), tradeId: trade.id, disputeId: dispute.id,
-        network: NETWORK, asset: ASSET, isSimulation: true,
-        ...result.quote, status: 'mock_completed', externalRefundId: null,
-        completedAt: new Date().toISOString()
-      };
-      store.state.refunds.push(refund);
-    }
+    const result = createMockRefund(trade, dispute, body, store.id('refund'));
+    const refund = result.refund;
+    if (refund) store.state.refunds.push(refund);
     recordAudit(req, 'DISPUTE_DECIDED', 'dispute', dispute.id, body.reason, before, dispute);
     notify(dispute.applicantId, 'dispute_decided', '분쟁 판정이 완료되었습니다', body.reason, dispute.id);
     store.event('DISPUTE_DECIDED', dispute.id, { type: body.type, refundId: refund?.id || null }); await store.save();
     return sendJson(res, 200, { ok: true, dispute: adminDisputeSummary(store.state, dispute), refund: adminRefundSummary(refund) });
+  }
+  match = pathname.match(/^\/api\/v1\/testnet\/checklist-trades\/([^/]+)\/full-refund$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    assertChecklistBuyer(trade, userId);
+    const existingRefund = store.state.refunds.find((item) => item.tradeId === trade.id);
+    if (existingRefund) return sendJson(res, 200, { ok: true, trade, refund: existingRefund, idempotent: true });
+    const dispute = store.state.disputes.find((item) => item.tradeId === trade.id && item.status !== 'closed');
+    if (!findOr404(res, dispute, 'open dispute')) return;
+    const result = createMockRefund(trade, dispute, { type: 'full_refund', reason: 'Testnet 체크리스트 전액 모의환불' }, store.id('refund'));
+    store.state.refunds.push(result.refund);
+    store.event('PI_CHECKLIST_FULL_REFUND_COMPLETED', result.refund.id); await store.save();
+    return sendJson(res, 201, { ok: true, trade, dispute, refund: result.refund });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/disputes') {
     if (!requireTestAdmin(req, res)) return;

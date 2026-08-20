@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { refundQuote, decideDispute } = require('../lib/refunds');
+const { refundQuote, decideDispute, createMockRefund } = require('../lib/refunds');
 
 test('전액 환불은 구매자 수수료를 반환하고 판매자 수수료를 부과하지 않는다', () => {
   const quote = refundQuote(100, 0, 0.01);
@@ -48,4 +48,12 @@ test('종료된 분쟁을 다시 판정하지 않는다', () => {
   const trade = { id: 't1', type: 'parcel_testnet', amount: 100 };
   const dispute = { id: 'd1', tradeId: 't1', status: 'closed' };
   assert.throws(() => decideDispute(trade, dispute, { type: 'full_refund' }), /open dispute/);
+});
+
+test('전액 모의환불 기록에는 구매자 수수료 환불을 포함한다', () => {
+  const trade = { id: 't1', type: 'parcel_testnet', amount: 0.01, status: 'disputed', settlementHold: true };
+  const dispute = { id: 'd1', tradeId: 't1', status: 'received', settlementHold: true };
+  const result = createMockRefund(trade, dispute, { type: 'full_refund', reason: '시험' }, 'r1', new Date('2026-08-20T00:00:00Z'));
+  assert.equal(result.refund.totalBuyerRefund, 0.0101);
+  assert.equal(result.refund.status, 'mock_completed');
 });
