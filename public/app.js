@@ -493,14 +493,8 @@ async function loadMyProducts() {
 
 async function loadMyTrades() {
   const { items } = await api('/api/v1/me/trades');
-  $('myTrades').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-trade-detail="${escapeHtml(item.id)}"><div><small>${item.myRole === 'buyer' ? '구매' : '판매'} · ${escapeHtml(statusNames[item.status] || item.status)}</small><h3>${escapeHtml(item.product?.title || '상품정보 없음')}</h3><p>${escapeHtml(item.amount)} Test-Pi · ${item.type === 'direct' ? '직거래' : 'Testnet 택배'}</p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">진행한 거래가 없습니다.</p>';
+  $('myTrades').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-trade-detail="${escapeHtml(item.id)}"><div><small>${item.myRole === 'buyer' ? '구매' : '판매'} · ${escapeHtml(statusNames[item.status] || item.status)}</small><h3>${escapeHtml(item.product?.title || (item.purpose === 'pi_checklist' ? 'Testnet 기능시험' : '상품정보 없음'))}</h3><p>${escapeHtml(item.amount)} Test-Pi · ${item.type === 'direct' ? '직거래' : 'Testnet 택배'}</p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">진행한 거래가 없습니다.</p>';
   document.querySelectorAll('[data-trade-detail]').forEach((button) => button.addEventListener('click', () => openTradeDetail(button.dataset.tradeDetail).catch((error) => alert(error.message))));
-}
-
-async function loadMyReviews() {
-  const { items } = await api('/api/v1/me/reviews');
-  const sentimentNames = { positive: '긍정', neutral: '보통', negative: '아쉬움' };
-  $('myReviews').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${item.direction === 'written' ? '작성한 후기' : '받은 후기'} · ${escapeHtml(sentimentNames[item.sentiment] || item.sentiment)}</small><h3>${escapeHtml(item.productTitle)}</h3><p>${escapeHtml(item.comment || '내용 없음')}</p><p class="meta">${item.direction === 'written' ? `받는 사람 ${escapeHtml(item.targetName)}` : `작성자 ${escapeHtml(item.writerName)}`}</p></div></article>`).join('') : '<p class="empty">아직 작성하거나 받은 후기가 없습니다.</p>';
 }
 
 async function loadMyFavorites() {
@@ -564,9 +558,9 @@ async function loadMyReports() {
   $('myReports').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(names[item.status] || item.status)} · ${item.targetType === 'product' ? '상품' : '거래'} 신고</small><h3>${escapeHtml(item.reason)}</h3><p>접수번호 ${escapeHtml(item.id)}</p></div></article>`).join('') : '<p class="empty">접수한 신고가 없습니다.</p>';
 }
 async function loadTrust() { const { profile, nextLevel } = await api('/api/v1/me/trust'); $('trustSummary').innerHTML = `<div><small>신뢰등급</small><strong>${escapeHtml(profile.level)}</strong></div><div><small>신뢰점수</small><strong>${escapeHtml(profile.score)}점</strong></div><div><small>정상거래</small><strong>${escapeHtml(profile.normalTradeCount)}건</strong></div><div><small>다음등급</small><strong>${escapeHtml(nextLevel?.level || '최고등급')}</strong></div>`; }
-async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadMyReviews(), loadNotifications(), loadMyReports(), loadTrust()]); }
+async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadNotifications(), loadMyReports(), loadTrust()]); }
 function showManagement(type) {
-  for (const name of ['Products', 'Favorites', 'Trades', 'Reviews']) {
+  for (const name of ['Products', 'Favorites', 'Trades']) {
     const active = type === name.toLowerCase();
     $(`my${name}`).classList.toggle('hidden', !active);
     $(`showMy${name}`).classList.toggle('active', active);
@@ -680,7 +674,6 @@ $('refreshMy').addEventListener('click', () => loadMyMarket().catch((error) => a
 $('showMyProducts').addEventListener('click', () => showManagement('products'));
 $('showMyFavorites').addEventListener('click', () => showManagement('favorites'));
 $('showMyTrades').addEventListener('click', () => showManagement('trades'));
-$('showMyReviews').addEventListener('click', () => showManagement('reviews'));
 $('navHome').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 $('navSearch').addEventListener('click', () => $('products').scrollIntoView({ behavior: 'smooth' }));
 $('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); $('registerPanel').classList.remove('hidden'); $('registerPanel').scrollIntoView({ behavior: 'smooth' }); });
