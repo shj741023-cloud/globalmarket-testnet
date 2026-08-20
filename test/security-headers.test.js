@@ -17,4 +17,6 @@ test('모든 응답에 기본 보안 헤더를 제공한다', () => {
   assert.equal(headers['X-Content-Type-Options'], 'nosniff');
   assert.equal(headers['Permissions-Policy'], 'camera=(), microphone=(), geolocation=()');
   assert.match(headers['Strict-Transport-Security'], /max-age=31536000/);
+  assert.equal(headers['Content-Security-Policy'], undefined);
+  assert.equal(headers['Content-Security-Policy-Report-Only'], CONTENT_SECURITY_POLICY);
 });
