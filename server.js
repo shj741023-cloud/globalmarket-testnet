@@ -53,6 +53,7 @@ const { adminKeyMatches, requestIdentity } = require('./lib/admin-auth');
 const { adminReportSummary, adminReportSummaries } = require('./lib/admin-reports');
 const { securityHeaders } = require('./lib/security-headers');
 const { createCompensation, confirmCompensation, appealCompensation } = require('./lib/gas-compensation');
+const { createMockPayoutBatch } = require('./lib/compensation-payouts');
 const { assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt, decideGasDebtAppeal } = require('./lib/trading-restrictions');
 
 assertTestnetEnvironment();
@@ -929,6 +930,14 @@ async function handleApi(req, res, url) {
     const status = url.searchParams.get('status');
     const items = store.state.gasDebts.filter((item) => !status || item.status === status).slice().reverse();
     return sendJson(res, 200, { ok: true, items });
+  }
+  if (method === 'POST' && pathname === '/api/v1/admin/gas-compensation-payouts/mock-batch') {
+    if (!requireTestAdmin(req,res)) return;
+    const result=createMockPayoutBatch(store.state.gasCompensations,{id:store.id('comp_payout'),adminId:testAdminId(req)});
+    store.state.compensationPayouts.push(result.batch);
+    for(const item of result.items) notify(item.buyerId,'gas_compensation_paid','Testnet 가스비 보상 지급이 완료되었습니다',`${item.currentlyPayableAmount} Test-Pi · 지급번호 ${result.batch.id}`,result.batch.id);
+    recordAudit(req,'GAS_COMPENSATION_BATCH_PAID','compensation_payout',result.batch.id,'Testnet 보상금 일괄 모의지급',null,result.batch);
+    await store.save(); return sendJson(res,201,{ok:true,batch:result.batch});
   }
   match = pathname.match(/^\/api\/v1\/admin\/gas-debts\/([^/]+)\/decision$/);
   if (method === 'POST' && match) {

@@ -285,6 +285,7 @@ function showAdminSection(name) {
   $('adminReports').classList.toggle('hidden', !reports);
   $('adminDisputes').classList.toggle('hidden', !disputes);
   $('adminGasDebts').classList.toggle('hidden', !gasDebts);
+  $('mockPayCompensations').classList.toggle('hidden', !gasDebts);
   $('adminAudit').classList.toggle('hidden', name !== 'audit');
   $('adminSearchForm').classList.toggle('hidden', !users);
   $('showAdminUsers').classList.toggle('active', users);
@@ -725,6 +726,7 @@ $('showAdminProducts').addEventListener('click', () => { showAdminSection('produ
 $('showAdminReports').addEventListener('click', () => { showAdminSection('reports'); loadAdminReports().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminDisputes').addEventListener('click', () => { showAdminSection('disputes'); loadAdminDisputes().then((count) => { $('adminResult').textContent = `택배 안전거래 분쟁 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminGasDebts').addEventListener('click', () => { showAdminSection('gasDebts'); loadAdminGasDebts().then((count) => { $('adminResult').textContent = `미납 이의신청 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
+$('mockPayCompensations').addEventListener('click', async()=>{if(!confirm('소비자가 확인한 보상금을 합산해 Testnet 모의지급할까요? 플랫폼 가스비 0.01 Pi가 별도 기록됩니다.'))return;try{const {batch}=await adminApi('/api/v1/admin/gas-compensation-payouts/mock-batch',{method:'POST',body:'{}'});$('adminResult').textContent=`${batch.itemCount}건 · ${batch.totalAmount} Test-Pi 모의지급 완료`;await loadAdminAudit();}catch(error){$('adminResult').textContent=error.message;}});
 $('showAdminAudit').addEventListener('click', () => { showAdminSection('audit'); loadAdminAudit().then((count) => { $('adminResult').textContent = `안전하게 정리된 작업기록 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('productForm').addEventListener('submit', registerProduct);
 $('productImage').addEventListener('change', () => prepareSelectedImages('productImage', 'registerProductImages', 'registerImages', 'registerResult'));

@@ -1,0 +1,3 @@
+'use strict'; const test=require('node:test'); const assert=require('node:assert/strict'); const {createMockPayoutBatch}=require('../lib/compensation-payouts');
+test('확인된 보상금만 합산하고 플랫폼 가스비를 별도 기록한다',()=>{const items=[{status:'confirmed',currentlyPayableAmount:.006},{status:'awaiting_confirmation',currentlyPayableAmount:.01}];const r=createMockPayoutBatch(items,{id:'p',adminId:'a'},new Date('2026-08-20'));assert.equal(r.batch.totalAmount,.006);assert.equal(r.batch.platformGasFee,.01);assert.equal(items[0].status,'mock_paid');});
+test('이미 지급된 보상금의 중복 지급을 차단한다',()=>{assert.throws(()=>createMockPayoutBatch([{status:'mock_paid',currentlyPayableAmount:.01,payoutId:'old'}],{id:'p',adminId:'a'}),e=>e.code==='NO_COMPENSATION_PAYOUTS');});
