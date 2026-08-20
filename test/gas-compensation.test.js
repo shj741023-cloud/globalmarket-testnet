@@ -1,0 +1,4 @@
+'use strict'; const test = require('node:test'); const assert = require('node:assert/strict');
+const { createCompensation, confirmCompensation, appealCompensation } = require('../lib/gas-compensation');
+test('소비자 보상액은 확정·회수·미회수·지급가능 금액을 분리한다', () => { const item = createCompensation({ id:'c', buyerId:'b', refundId:'r', debtId:'d', confirmedAmount:0.01, recoveredAmount:0.006 }); assert.equal(item.recoveredAmount,0.006); assert.equal(item.unrecoveredAmount,0.004); assert.equal(item.currentlyPayableAmount,0.006); });
+test('소비자는 보상 안내를 확인하거나 이의신청할 수 있다', () => { const make=()=>createCompensation({id:'c',buyerId:'b',refundId:'r',debtId:'d',confirmedAmount:0.01,recoveredAmount:0.01}); assert.equal(confirmCompensation(make(),'b').status,'confirmed'); assert.equal(appealCompensation(make(),'b','계산 재검토').status,'appeal_pending'); assert.throws(()=>confirmCompensation(make(),'x'),/본인 보상/); });

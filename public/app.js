@@ -588,7 +588,13 @@ async function loadGasDebts() {
   document.querySelectorAll('[data-debt-appeal]').forEach((button) => button.addEventListener('click', async () => { const reason = prompt('이의신청 사유를 입력하세요'); if (!reason?.trim()) return; try { await api(`/api/v1/gas-debts/${button.dataset.debtAppeal}/appeal`, { method: 'POST', body: JSON.stringify({ reason }) }); await Promise.all([loadGasDebts(), loadNotifications()]); } catch (error) { alert(error.message); } }));
   document.querySelectorAll('[data-debt-pay]').forEach((button) => button.addEventListener('click', async () => { if (!confirm('실제 Pi가 이동하지 않는 Testnet 모의납부를 진행할까요?')) return; try { await api(`/api/v1/testnet/gas-debts/${button.dataset.debtPay}/mock-pay`, { method: 'POST' }); await Promise.all([loadGasDebts(), loadNotifications()]); } catch (error) { alert(error.message); } }));
 }
-async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadNotifications(), loadMyReports(), loadTrust(), loadGasDebts()]); }
+async function loadGasCompensations() {
+  const { items } = await api('/api/v1/me/gas-compensations');
+  $('gasCompensations').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${item.status === 'appeal_pending' ? '이의신청 검토 중' : item.status === 'confirmed' ? '내용 확인 완료' : '확인 필요'}</small><h3>가스비 보상 ${escapeHtml(item.confirmedAmount)} Pi</h3><p>회수 ${escapeHtml(item.recoveredAmount)} Pi · 미회수 ${escapeHtml(item.unrecoveredAmount)} Pi · 현재 지급 가능 ${escapeHtml(item.currentlyPayableAmount)} Pi</p><p>회수된 보상금은 다른 지급과 합산하여 송금합니다.</p></div>${item.status === 'awaiting_confirmation' ? `<div class="card-actions"><button data-comp-confirm="${escapeHtml(item.id)}">내용 확인 및 지급 진행</button><button data-comp-appeal="${escapeHtml(item.id)}">이의신청</button></div>` : ''}</article>`).join('') : '<p class="empty">가스비 보상 안내가 없습니다.</p>';
+  document.querySelectorAll('[data-comp-confirm]').forEach((button) => button.addEventListener('click', async () => { try { await api(`/api/v1/gas-compensations/${button.dataset.compConfirm}/confirm`, { method:'POST', body:'{}' }); await loadGasCompensations(); } catch(error) { alert(error.message); } }));
+  document.querySelectorAll('[data-comp-appeal]').forEach((button) => button.addEventListener('click', async () => { const reason=prompt('보상 계산 이의신청 사유'); if(!reason?.trim()) return; try { await api(`/api/v1/gas-compensations/${button.dataset.compAppeal}/appeal`, { method:'POST', body:JSON.stringify({reason}) }); await loadGasCompensations(); } catch(error) { alert(error.message); } }));
+}
+async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadNotifications(), loadMyReports(), loadTrust(), loadGasDebts(), loadGasCompensations()]); }
 function showManagement(type) {
   for (const name of ['Products', 'Favorites', 'Trades']) {
     const active = type === name.toLowerCase();

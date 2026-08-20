@@ -52,6 +52,7 @@ const { adminDashboardSummary } = require('./lib/admin-dashboard');
 const { adminKeyMatches, requestIdentity } = require('./lib/admin-auth');
 const { adminReportSummary, adminReportSummaries } = require('./lib/admin-reports');
 const { securityHeaders } = require('./lib/security-headers');
+const { createCompensation, confirmCompensation, appealCompensation } = require('./lib/gas-compensation');
 const { assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt, decideGasDebtAppeal } = require('./lib/trading-restrictions');
 
 assertTestnetEnvironment();
@@ -393,6 +394,17 @@ async function handleApi(req, res, url) {
     const userId = requireUserId(req, res); if (!userId) return;
     return sendJson(res, 200, { ok: true, items: store.state.gasDebts.filter((item) => item.userId === userId).slice().reverse() });
   }
+  if (method === 'GET' && pathname === '/api/v1/me/gas-compensations') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    return sendJson(res, 200, { ok: true, items: store.state.gasCompensations.filter((item) => item.buyerId === userId).slice().reverse() });
+  }
+  match = pathname.match(/^\/api\/v1\/gas-compensations\/([^/]+)\/(confirm|appeal)$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const item = store.state.gasCompensations.find((candidate) => candidate.id === match[1]); if (!findOr404(res, item, 'gas compensation')) return;
+    const body = await readJson(req); if (match[2] === 'confirm') confirmCompensation(item, userId); else appealCompensation(item, userId, body.reason);
+    await store.save(); return sendJson(res, 200, { ok: true, compensation: item });
+  }
   match = pathname.match(/^\/api\/v1\/gas-debts\/([^/]+)\/appeal$/);
   if (method === 'POST' && match) {
     const userId = requireUserId(req, res); if (!userId) return;
@@ -406,6 +418,11 @@ async function handleApi(req, res, url) {
     const userId = requireUserId(req, res); if (!userId) return;
     const debt = store.state.gasDebts.find((item) => item.id === match[1]); if (!findOr404(res, debt, 'gas debt')) return;
     const result = mockPayGasDebt(debt, userId);
+    if (!result.idempotent) {
+      const refund = store.state.refunds.find((item) => item.id === debt.refundId); const trade = refund && store.findTrade(refund.tradeId);
+      const claim = Number(refund?.gasLiability?.buyerGasCompensationClaim || 0);
+      if (trade && claim > 0 && !store.state.gasCompensations.some((item) => item.debtId === debt.id)) store.state.gasCompensations.push(createCompensation({ id: store.id('gas_compensation'), buyerId: trade.buyerId, refundId: refund.id, debtId: debt.id, confirmedAmount: claim, recoveredAmount: debt.paidAmount }));
+    }
     if (!result.idempotent) notify(userId, 'gas_debt_paid', 'Testnet 가스비 모의납부가 완료되었습니다', `${debt.paidAmount} Test-Pi`, debt.id);
     await store.save(); return sendJson(res, 200, { ok: true, debt, idempotent: result.idempotent });
   }
