@@ -593,8 +593,13 @@ async function preparePayment() {
   if (!window.Pi || !state.user) { log('Pi 로그인 후 실제 Sandbox 창을 열 수 있습니다. 현재는 서버 모의 준비까지만 완료했습니다.'); return; }
   const callbacks = {
     onReadyForServerApproval: async (piPaymentId) => {
-      await api(`/api/v1/payments/${payment.id}/approve`, { method: 'POST', body: JSON.stringify({ piPaymentId }) });
-      log('Pi 서버 승인 단계 완료');
+      try {
+        await api(`/api/v1/payments/${payment.id}/approve`, { method: 'POST', body: JSON.stringify({ piPaymentId }) });
+        log('Pi 서버 승인 단계 완료');
+      } catch (error) {
+        log(`Pi 서버 승인 실패: ${error.message}`);
+        throw error;
+      }
     },
     onReadyForServerCompletion: async (piPaymentId, txid) => {
       const result = await api(`/api/v1/payments/${payment.id}/complete`, { method: 'POST', body: JSON.stringify({ piPaymentId, txid }) });

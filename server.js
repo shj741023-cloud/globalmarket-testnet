@@ -172,13 +172,13 @@ function findOr404(res, item, type) {
 }
 
 async function callPi(pathname, body) {
-  const key = process.env.PI_API_KEY;
+  const key = String(process.env.PI_API_KEY || '').trim();
   if (!key) return { simulated: true, reason: 'PI_API_KEY is not configured' };
-  const base = process.env.PI_API_BASE_URL || 'https://api.minepi.com';
+  const base = String(process.env.PI_API_BASE_URL || 'https://api.minepi.com').trim().replace(/\/+$/, '');
   const response = await fetch(`${base}${pathname}`, {
     method: 'POST',
-    headers: { authorization: `key ${key}`, 'content-type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined
+    headers: { authorization: `Key ${key}`, 'content-type': 'application/json' },
+    body: JSON.stringify(body || {})
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw Object.assign(new Error('Pi Testnet API rejected the request'), {
@@ -572,11 +572,14 @@ async function handleApi(req, res, url) {
     if (stateResult.idempotent) return sendJson(res, 200, { ok: true, payment, idempotent: true });
     let piResult;
     try {
+      console.log('PI_PAYMENT_APPROVAL_REQUESTED', payment.id);
       piResult = await callPi(`/v2/payments/${encodeURIComponent(body.piPaymentId)}/approve`);
     } catch (error) {
+      console.error('PI_PAYMENT_APPROVAL_FAILED', payment.id, error.status || 500, error.code || 'PI_API_ERROR');
       Object.assign(payment, beforeApproval);
       throw error;
     }
+    console.log('PI_PAYMENT_APPROVAL_SUCCEEDED', payment.id);
     store.event('PAYMENT_APPROVED', payment.id, { simulatedProvider: Boolean(piResult.simulated) }); await store.save();
     return sendJson(res, 200, { ok: true, payment, provider: piResult });
   }
