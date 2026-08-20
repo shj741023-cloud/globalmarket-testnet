@@ -54,6 +54,7 @@ const { adminReportSummary, adminReportSummaries } = require('./lib/admin-report
 const { securityHeaders } = require('./lib/security-headers');
 const { createCompensation, confirmCompensation, appealCompensation } = require('./lib/gas-compensation');
 const { createMockPayoutBatch } = require('./lib/compensation-payouts');
+const { offsetDebts } = require('./lib/debt-offset');
 const { assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt, decideGasDebtAppeal } = require('./lib/trading-restrictions');
 
 assertTestnetEnvironment();
@@ -712,7 +713,11 @@ async function handleApi(req, res, url) {
     if (!requireTestAdmin(req, res)) return;
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
     const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement') });
-    if (!result.idempotent) { store.event('MOCK_SETTLEMENT_COMPLETED', result.settlement.id); await store.save(); }
+    if (!result.idempotent) {
+      const offset=offsetDebts(store.state.gasDebts,trade.sellerId,result.settlement.netAmount); result.settlement.debtOffsetAmount=offset.offsetAmount; result.settlement.netAmount=offset.sellerNetAmount; result.settlement.debtAllocations=offset.allocations;
+      for(const allocation of offset.allocations){const refund=store.state.refunds.find(i=>i.id===allocation.refundId);const sourceTrade=refund&&store.findTrade(refund.tradeId);const claim=Number(refund?.gasLiability?.buyerGasCompensationClaim||0);if(sourceTrade&&claim>0){let item=store.state.gasCompensations.find(i=>i.refundId===refund.id);if(!item){item=createCompensation({id:store.id('gas_compensation'),buyerId:sourceTrade.buyerId,refundId:refund.id,debtId:allocation.debtId,confirmedAmount:claim,recoveredAmount:allocation.amount});store.state.gasCompensations.push(item);}else{item.recoveredAmount=Math.min(item.confirmedAmount,item.recoveredAmount+allocation.amount);item.unrecoveredAmount=Math.max(0,item.confirmedAmount-item.recoveredAmount);item.currentlyPayableAmount=item.recoveredAmount;}}}
+      notify(trade.sellerId,'settlement_debt_offset','정산금에서 미납금이 우선 차감되었습니다',`차감 ${offset.offsetAmount} Pi · 최종 정산 ${offset.sellerNetAmount} Pi`,result.settlement.id); store.event('MOCK_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
+    }
     return sendJson(res, result.idempotent ? 200 : 201, { ok: true, ...result });
   }
   match = pathname.match(/^\/api\/v1\/testnet\/checklist-trades\/([^/]+)\/settlement$/);
