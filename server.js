@@ -33,6 +33,7 @@ const { listUserTrades, tradeSnapshot } = require('./lib/trade-view');
 const { listUserRooms } = require('./lib/chat-view');
 const { checklistTrade, assertChecklistBuyer } = require('./lib/checklist');
 const { userReviews, sellerReviews } = require('./lib/review-view');
+const { completeMockSettlement } = require('./lib/settlements');
 const { publicProduct } = require('./lib/product-view');
 const { listFavoriteProductIds, addFavorite, removeFavorite } = require('./lib/favorites');
 const { assertReportTarget } = require('./lib/report-target');
@@ -654,20 +655,21 @@ async function handleApi(req, res, url) {
   if (method === 'POST' && match) {
     if (!requireTestAdmin(req, res)) return;
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
-    assertFinancialTradeAllowed(trade);
-    if (trade.settlementHold) return apiError(res, 409, 'SETTLEMENT_HELD', 'Settlement is held by a dispute');
-    if (!['purchase_confirmed', 'completed'].includes(trade.status)) return apiError(res, 409, 'PURCHASE_NOT_CONFIRMED', 'Purchase confirmation is required');
-    const existing = store.state.settlements.find((item) => item.tradeId === trade.id);
-    if (existing) return sendJson(res, 200, { ok: true, settlement: existing, idempotent: true });
-    const quote = paymentQuote(trade.amount, 0);
-    const settlement = {
-      id: store.id('settlement'), tradeId: trade.id, network: NETWORK, asset: ASSET,
-      isSimulation: true, grossAmount: trade.amount, sellerFee: quote.sellerFee,
-      netAmount: quote.sellerExpectedSettlement, externalPayoutId: null,
-      status: 'mock_completed', completedAt: new Date().toISOString()
-    };
-    store.state.settlements.push(settlement); store.event('MOCK_SETTLEMENT_COMPLETED', settlement.id); await store.save();
-    return sendJson(res, 201, { ok: true, settlement });
+    const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement') });
+    if (!result.idempotent) { store.event('MOCK_SETTLEMENT_COMPLETED', result.settlement.id); await store.save(); }
+    return sendJson(res, result.idempotent ? 200 : 201, { ok: true, ...result });
+  }
+  match = pathname.match(/^\/api\/v1\/testnet\/checklist-trades\/([^/]+)\/settlement$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    assertChecklistBuyer(trade, userId);
+    const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement') });
+    if (!result.idempotent) {
+      trade.status = 'completed'; trade.completedAt = result.settlement.completedAt;
+      store.event('PI_CHECKLIST_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
+    }
+    return sendJson(res, result.idempotent ? 200 : 201, { ok: true, trade, ...result });
   }
   match = pathname.match(/^\/api\/v1\/trades\/([^/]+)\/shipment$/);
   if (method === 'POST' && match) {
