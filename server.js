@@ -204,6 +204,11 @@ async function handleApi(req, res, url) {
   const method = req.method;
   const pathname = url.pathname;
   let match;
+  if (method === 'POST' && /^\/api\/v1\/payments\/[^/]+\/approve$/.test(pathname)) {
+    const hasBearerSession = String(req.headers.authorization || '').startsWith('Bearer ');
+    const originHost = (() => { try { return new URL(String(req.headers.origin || '')).host; } catch { return 'none'; } })();
+    console.log('PI_PAYMENT_APPROVAL_CALLBACK_RECEIVED', `bearer=${hasBearerSession}`, `origin=${originHost}`);
+  }
   if (!isMutationOriginAllowed({ method, origin: req.headers.origin, authorization: req.headers.authorization, extraOrigins: process.env.ALLOWED_ORIGINS })) {
     return apiError(res, 403, 'ORIGIN_NOT_ALLOWED', '허용되지 않은 사이트에서 보낸 요청입니다.');
   }
