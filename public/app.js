@@ -565,7 +565,14 @@ async function loadMyReports() {
   $('myReports').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(names[item.status] || item.status)} · ${item.targetType === 'product' ? '상품' : '거래'} 신고</small><h3>${escapeHtml(item.reason)}</h3><p>접수번호 ${escapeHtml(item.id)}</p></div></article>`).join('') : '<p class="empty">접수한 신고가 없습니다.</p>';
 }
 async function loadTrust() { const { profile, nextLevel } = await api('/api/v1/me/trust'); $('trustSummary').innerHTML = `<div><small>신뢰등급</small><strong>${escapeHtml(profile.level)}</strong></div><div><small>신뢰점수</small><strong>${escapeHtml(profile.score)}점</strong></div><div><small>정상거래</small><strong>${escapeHtml(profile.normalTradeCount)}건</strong></div><div><small>다음등급</small><strong>${escapeHtml(nextLevel?.level || '최고등급')}</strong></div>`; }
-async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadNotifications(), loadMyReports(), loadTrust()]); }
+async function loadGasDebts() {
+  const { items } = await api('/api/v1/me/gas-debts');
+  const names = { confirmed_unpaid: '미납', appeal_pending: '이의신청 검토 중', paid: '완납' };
+  $('gasDebts').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(names[item.status] || item.status)}</small><h3>${escapeHtml(item.outstandingAmount)} Pi</h3><p>${escapeHtml(item.reason)} · 이의신청 기한 ${escapeHtml(new Date(item.appealDeadline).toLocaleString())}</p></div><div class="card-actions">${item.status === 'confirmed_unpaid' && Date.now() <= new Date(item.appealDeadline).getTime() ? `<button data-debt-appeal="${escapeHtml(item.id)}">이의신청</button>` : ''}${['confirmed_unpaid', 'appeal_pending'].includes(item.status) ? `<button data-debt-pay="${escapeHtml(item.id)}">Testnet 모의납부</button>` : ''}</div></article>`).join('') : '<p class="empty">가스비 미납금이 없습니다.</p>';
+  document.querySelectorAll('[data-debt-appeal]').forEach((button) => button.addEventListener('click', async () => { const reason = prompt('이의신청 사유를 입력하세요'); if (!reason?.trim()) return; try { await api(`/api/v1/gas-debts/${button.dataset.debtAppeal}/appeal`, { method: 'POST', body: JSON.stringify({ reason }) }); await Promise.all([loadGasDebts(), loadNotifications()]); } catch (error) { alert(error.message); } }));
+  document.querySelectorAll('[data-debt-pay]').forEach((button) => button.addEventListener('click', async () => { if (!confirm('실제 Pi가 이동하지 않는 Testnet 모의납부를 진행할까요?')) return; try { await api(`/api/v1/testnet/gas-debts/${button.dataset.debtPay}/mock-pay`, { method: 'POST' }); await Promise.all([loadGasDebts(), loadNotifications()]); } catch (error) { alert(error.message); } }));
+}
+async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadNotifications(), loadMyReports(), loadTrust(), loadGasDebts()]); }
 function showManagement(type) {
   for (const name of ['Products', 'Favorites', 'Trades']) {
     const active = type === name.toLowerCase();

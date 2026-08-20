@@ -52,7 +52,7 @@ const { adminDashboardSummary } = require('./lib/admin-dashboard');
 const { adminKeyMatches, requestIdentity } = require('./lib/admin-auth');
 const { adminReportSummary, adminReportSummaries } = require('./lib/admin-reports');
 const { securityHeaders } = require('./lib/security-headers');
-const { assertTradingAllowed, createGasDebt } = require('./lib/trading-restrictions');
+const { assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt } = require('./lib/trading-restrictions');
 
 assertTestnetEnvironment();
 
@@ -348,6 +348,7 @@ async function handleApi(req, res, url) {
   }
   if (method === 'POST' && pathname === '/api/v1/testnet/checklist-trades') {
     const buyerId = requireUserId(req, res); if (!buyerId) return;
+    if (!requireTradingAllowed(buyerId, res)) return;
     const result = checklistTrade(store.state.trades, buyerId, { id: store.id('trade') });
     if (!result.idempotent) { store.state.trades.push(result.trade); store.event('PI_CHECKLIST_TRADE_CREATED', result.trade.id); await store.save(); }
     return sendJson(res, result.idempotent ? 200 : 201, { ok: true, trade: result.trade, idempotent: result.idempotent });
@@ -387,6 +388,26 @@ async function handleApi(req, res, url) {
   if (method === 'GET' && pathname === '/api/v1/notifications') {
     const userId = requireUserId(req, res); if (!userId) return;
     return sendJson(res, 200, { ok: true, items: store.state.notifications.filter((item) => item.userId === userId).slice(-100).reverse() });
+  }
+  if (method === 'GET' && pathname === '/api/v1/me/gas-debts') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    return sendJson(res, 200, { ok: true, items: store.state.gasDebts.filter((item) => item.userId === userId).slice().reverse() });
+  }
+  match = pathname.match(/^\/api\/v1\/gas-debts\/([^/]+)\/appeal$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const debt = store.state.gasDebts.find((item) => item.id === match[1]); if (!findOr404(res, debt, 'gas debt')) return;
+    const body = await readJson(req); appealGasDebt(debt, userId, body.reason);
+    notify(userId, 'gas_debt_appealed', '가스비 미납 이의신청이 접수되었습니다', debt.appealReason, debt.id);
+    await store.save(); return sendJson(res, 200, { ok: true, debt });
+  }
+  match = pathname.match(/^\/api\/v1\/testnet\/gas-debts\/([^/]+)\/mock-pay$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const debt = store.state.gasDebts.find((item) => item.id === match[1]); if (!findOr404(res, debt, 'gas debt')) return;
+    const result = mockPayGasDebt(debt, userId);
+    if (!result.idempotent) notify(userId, 'gas_debt_paid', 'Testnet 가스비 모의납부가 완료되었습니다', `${debt.paidAmount} Test-Pi`, debt.id);
+    await store.save(); return sendJson(res, 200, { ok: true, debt, idempotent: result.idempotent });
   }
   if (method === 'GET' && pathname === '/api/v1/me/reports') {
     const userId = requireUserId(req, res); if (!userId) return;
