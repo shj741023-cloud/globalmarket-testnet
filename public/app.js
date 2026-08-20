@@ -508,6 +508,8 @@ async function openTradeDetail(tradeId) {
   $('tradeDetailContent').innerHTML = `<p class="eyebrow">${trade.myRole === 'buyer' ? 'PURCHASE' : 'SALE'}</p><h3>${escapeHtml(detail.product?.title || '상품정보 없음')}</h3><div class="detail-grid"><p><small>거래상태</small><strong>${escapeHtml(statusNames[trade.status] || trade.status)}</strong></p><p><small>거래금액</small><strong>${escapeHtml(trade.amount)} Test-Pi</strong></p><p><small>거래방식</small><strong>${trade.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p><small>정산보류</small><strong>${trade.settlementHold ? '보류중' : '없음'}</strong></p></div>`;
   const actions = [];
   if (trade.type === 'parcel_testnet' && trade.myRole === 'buyer' && trade.status === 'payment_pending') actions.push(['actionPay', 'Test-Pi 결제', 'primary']);
+  if (trade.purpose === 'pi_checklist' && trade.myRole === 'buyer' && trade.status === 'shipping_pending') actions.push(['actionChecklistShip', 'Testnet 발송 처리', 'primary']);
+  if (trade.purpose === 'pi_checklist' && trade.myRole === 'buyer' && trade.status === 'shipping') actions.push(['actionChecklistDeliver', 'Testnet 배송완료 처리', 'primary']);
   if (trade.type === 'parcel_testnet' && trade.myRole === 'seller' && trade.status === 'shipping_pending') actions.push(['actionShip', '운송장 등록', 'primary']);
   if (trade.type === 'parcel_testnet' && trade.myRole === 'buyer' && trade.status === 'delivered') actions.push(['actionConfirm', '구매확정', 'primary']);
   if (trade.type === 'parcel_testnet' && !['completed', 'cancelled', 'refunded', 'disputed'].includes(trade.status)) actions.push(['actionDispute', '분쟁 접수', 'secondary']);
@@ -522,6 +524,8 @@ async function openTradeDetail(tradeId) {
 function bindTradeActions(detail) {
   const trade = detail.trade; const refresh = () => Promise.all([openTradeDetail(trade.id), loadMyTrades()]);
   $('actionPay')?.addEventListener('click', () => preparePayment().then(refresh).catch((error) => alert(error.message)));
+  $('actionChecklistShip')?.addEventListener('click', async () => { if (!confirm('체크리스트 시험 거래를 Testnet 발송 처리할까요? 실제 택배는 발송되지 않습니다.')) return; try { await api(`/api/v1/testnet/checklist-trades/${trade.id}/shipment`, { method: 'POST' }); await refresh(); } catch (error) { alert(error.message); } });
+  $('actionChecklistDeliver')?.addEventListener('click', async () => { if (!confirm('체크리스트 시험 거래를 Testnet 배송완료 처리할까요?')) return; try { await api(`/api/v1/testnet/checklist-trades/${trade.id}/delivery`, { method: 'POST' }); await refresh(); } catch (error) { alert(error.message); } });
   $('actionShip')?.addEventListener('click', async () => { const carrier = prompt('택배사 이름'); if (!carrier) return; const trackingNumber = prompt('운송장 번호'); if (!trackingNumber) return; try { await api(`/api/v1/trades/${trade.id}/shipment`, { method: 'POST', body: JSON.stringify({ carrier, trackingNumber }) }); await refresh(); } catch (error) { alert(error.message); } });
   $('actionConfirm')?.addEventListener('click', async () => { if (!confirm('상품을 확인했고 구매를 확정할까요?')) return; try { await api(`/api/v1/trades/${trade.id}/confirm-purchase`, { method: 'POST' }); await refresh(); } catch (error) { alert(error.message); } });
   $('actionDispute')?.addEventListener('click', async () => { const reason = prompt('분쟁 사유를 입력하세요'); if (!reason) return; try { await api(`/api/v1/trades/${trade.id}/disputes`, { method: 'POST', body: JSON.stringify({ reason }) }); await refresh(); } catch (error) { alert(error.message); } });

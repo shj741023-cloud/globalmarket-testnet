@@ -31,7 +31,7 @@ const { preparePayment, approvePayment, completePayment, incompletePayments } = 
 const { assertTradeParty, assertTradeBuyer, assertTradeSeller } = require('./lib/trade-access');
 const { listUserTrades, tradeSnapshot } = require('./lib/trade-view');
 const { listUserRooms } = require('./lib/chat-view');
-const { checklistTrade } = require('./lib/checklist');
+const { checklistTrade, assertChecklistBuyer } = require('./lib/checklist');
 const { publicProduct } = require('./lib/product-view');
 const { listFavoriteProductIds, addFavorite, removeFavorite } = require('./lib/favorites');
 const { assertReportTarget } = require('./lib/report-target');
@@ -334,6 +334,28 @@ async function handleApi(req, res, url) {
     const result = checklistTrade(store.state.trades, buyerId, { id: store.id('trade') });
     if (!result.idempotent) { store.state.trades.push(result.trade); store.event('PI_CHECKLIST_TRADE_CREATED', result.trade.id); await store.save(); }
     return sendJson(res, result.idempotent ? 200 : 201, { ok: true, trade: result.trade, idempotent: result.idempotent });
+  }
+  match = pathname.match(/^\/api\/v1\/testnet\/checklist-trades\/([^/]+)\/shipment$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    assertChecklistBuyer(trade, userId);
+    const shipment = registerShipment(trade, {
+      id: store.id('shipment'), carrier: 'TESTNET', trackingNumber: `CHECKLIST-${trade.id.slice(-8)}`
+    });
+    store.state.shipments.push(shipment);
+    store.event('PI_CHECKLIST_SHIPMENT_CREATED', trade.id); await store.save();
+    return sendJson(res, 201, { ok: true, trade, shipment });
+  }
+  match = pathname.match(/^\/api\/v1\/testnet\/checklist-trades\/([^/]+)\/delivery$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    assertChecklistBuyer(trade, userId);
+    const shipment = store.findShipmentByTrade(trade.id); if (!findOr404(res, shipment, 'shipment')) return;
+    markDelivered(trade, shipment);
+    store.event('PI_CHECKLIST_DELIVERY_COMPLETED', trade.id); await store.save();
+    return sendJson(res, 200, { ok: true, trade, shipment });
   }
   if (method === 'GET' && pathname === '/api/v1/me/trust') {
     const userId = requireUserId(req, res); if (!userId) return;
