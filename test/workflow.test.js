@@ -32,10 +32,17 @@ test('배송완료 후 정확히 3일 뒤 자동확정 시각을 계산한다', 
 
 test('분쟁이 접수되면 구매확정과 정산을 보류한다', () => {
   const item = trade({ status: 'delivered' });
-  const dispute = openDispute(item, { id: 'dispute_1', applicantId: 'buyer', reason: '상품 상태 문제' });
+  const dispute = openDispute(item, { id: 'dispute_1', applicantId: 'buyer', reason: '상품 상태 문제', gasFeeNoticeAccepted: true });
   assert.equal(item.settlementHold, true);
   assert.equal(dispute.settlementHold, true);
+  assert.equal(dispute.gasFeeNoticeAccepted, true);
   assert.throws(() => confirmPurchase(item), /blocked by a dispute/);
+});
+
+test('가스비 안내에 동의하지 않으면 분쟁을 접수하지 않는다', () => {
+  const item = trade({ status: 'delivered' });
+  assert.throws(() => openDispute(item, { id: 'dispute_1', applicantId: 'buyer', reason: '상품 상태 문제' }), /Gas fee notice agreement/);
+  assert.equal(item.status, 'delivered');
 });
 
 test('분쟁 없는 배송완료 거래만 기한 후 자동확정 대상이다', () => {

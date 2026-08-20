@@ -721,7 +721,7 @@ async function handleApi(req, res, url) {
     if (existing) return sendJson(res, 200, { ok: true, dispute: existing, idempotent: true });
     const body = await readJson(req);
     if (!body.reason) return apiError(res, 400, 'DISPUTE_REASON_REQUIRED', 'reason is required');
-    const dispute = openDispute(trade, { id: store.id('dispute'), applicantId: actor, reason: body.reason });
+    const dispute = openDispute(trade, { id: store.id('dispute'), applicantId: actor, reason: body.reason, gasFeeNoticeAccepted: body.gasFeeNoticeAccepted });
     Object.assign(dispute, caseDeadlines(dispute.createdAt, body.complexity));
     store.state.disputes.push(dispute); store.event('DISPUTE_OPENED', dispute.id); await store.save();
     return sendJson(res, 201, { ok: true, dispute, trade });

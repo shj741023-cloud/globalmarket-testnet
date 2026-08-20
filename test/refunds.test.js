@@ -11,6 +11,10 @@ test('전액 환불은 구매자 수수료를 반환하고 판매자 수수료�
   assert.equal(quote.buyerFeeRefund, 1);
   assert.equal(quote.sellerFinalFee, 0);
   assert.equal(quote.unrecoverableNetworkFee, 0.01);
+  assert.equal(quote.originalPaymentGasFee, 0.01);
+  assert.equal(quote.refundTransferGasFee, 0.01);
+  assert.equal(quote.settlementTransferGasFee, 0);
+  assert.equal(quote.estimatedLifecycleGasFee, 0.02);
 });
 
 test('부분 환불은 구매자가 보유하는 금액 기준으로 양쪽 수수료를 재계산한다', () => {
@@ -20,6 +24,9 @@ test('부분 환불은 구매자가 보유하는 금액 기준으로 양쪽 수�
   assert.equal(quote.buyerFinalFee, 0.6);
   assert.equal(quote.sellerFinalFee, 0.6);
   assert.equal(quote.buyerFeeRefund, 0.4);
+  assert.equal(quote.refundTransferGasFee, 0.01);
+  assert.equal(quote.settlementTransferGasFee, 0.01);
+  assert.equal(quote.estimatedLifecycleGasFee, 0.03);
 });
 
 test('보유금액이 원거래금액을 넘으면 차단한다', () => {
