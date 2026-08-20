@@ -664,7 +664,8 @@ async function handleApi(req, res, url) {
     const userId = requireUserId(req, res); if (!userId) return;
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
     assertChecklistBuyer(trade, userId);
-    const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement') });
+    const partialRefund = store.state.refunds.find((item) => item.tradeId === trade.id && item.type === 'partial');
+    const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement'), grossAmount: partialRefund?.retainedAmount });
     if (!result.idempotent) {
       trade.status = 'completed'; trade.completedAt = result.settlement.completedAt;
       store.event('PI_CHECKLIST_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
@@ -838,6 +839,21 @@ async function handleApi(req, res, url) {
     const result = createMockRefund(trade, dispute, { type: 'full_refund', reason: 'Testnet 체크리스트 전액 모의환불' }, store.id('refund'));
     store.state.refunds.push(result.refund);
     store.event('PI_CHECKLIST_FULL_REFUND_COMPLETED', result.refund.id); await store.save();
+    return sendJson(res, 201, { ok: true, trade, dispute, refund: result.refund });
+  }
+  match = pathname.match(/^\/api\/v1\/testnet\/checklist-trades\/([^/]+)\/partial-refund$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
+    assertChecklistBuyer(trade, userId);
+    const existingRefund = store.state.refunds.find((item) => item.tradeId === trade.id);
+    if (existingRefund) return sendJson(res, 200, { ok: true, trade, refund: existingRefund, idempotent: true });
+    const dispute = store.state.disputes.find((item) => item.tradeId === trade.id && item.status !== 'closed');
+    if (!findOr404(res, dispute, 'open dispute')) return;
+    const retainedAmount = Math.round((trade.amount / 2) * 10000000) / 10000000;
+    const result = createMockRefund(trade, dispute, { type: 'partial_refund', retainedAmount, reason: 'Testnet 체크리스트 절반 부분환불' }, store.id('refund'));
+    store.state.refunds.push(result.refund);
+    store.event('PI_CHECKLIST_PARTIAL_REFUND_COMPLETED', result.refund.id); await store.save();
     return sendJson(res, 201, { ok: true, trade, dispute, refund: result.refund });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/disputes') {
