@@ -173,7 +173,9 @@ function findOr404(res, item, type) {
 
 async function callPi(pathname, body) {
   const key = String(process.env.PI_API_KEY || '').trim();
-  if (!key) return { simulated: true, reason: 'PI_API_KEY is not configured' };
+  if (!key) throw Object.assign(new Error('Pi Server API key is not configured'), {
+    code: 'PI_API_KEY_MISSING', status: 503
+  });
   const base = String(process.env.PI_API_BASE_URL || 'https://api.minepi.com').trim().replace(/\/+$/, '');
   const response = await fetch(`${base}${pathname}`, {
     method: 'POST',
@@ -574,7 +576,9 @@ async function handleApi(req, res, url) {
     if (!body.piPaymentId) return apiError(res, 400, 'PI_PAYMENT_ID_REQUIRED', 'piPaymentId is required');
     const beforeApproval = { providerPaymentId: payment.providerPaymentId, status: payment.status, approvedAt: payment.approvedAt };
     const stateResult = approvePayment(payment, store.state.payments, body.piPaymentId);
-    if (stateResult.idempotent) return sendJson(res, 200, { ok: true, payment, idempotent: true });
+    if (stateResult.idempotent && !stateResult.providerRetryRequired) {
+      return sendJson(res, 200, { ok: true, payment, idempotent: true });
+    }
     let piResult;
     try {
       console.log('PI_PAYMENT_APPROVAL_REQUESTED', payment.id);
@@ -585,8 +589,11 @@ async function handleApi(req, res, url) {
       throw error;
     }
     console.log('PI_PAYMENT_APPROVAL_SUCCEEDED', payment.id);
-    store.event('PAYMENT_APPROVED', payment.id, { simulatedProvider: Boolean(piResult.simulated) }); await store.save();
-    return sendJson(res, 200, { ok: true, payment, provider: piResult });
+    if (!stateResult.idempotent) {
+      store.event('PAYMENT_APPROVED', payment.id);
+      await store.save();
+    }
+    return sendJson(res, 200, { ok: true, payment, provider: piResult, idempotent: stateResult.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/payments\/([^/]+)\/complete$/);
   if (method === 'POST' && match) {

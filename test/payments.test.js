@@ -24,6 +24,20 @@ test('같은 Pi 결제 ID를 다른 결제에 연결하지 않는다', () => {
   assert.throws(() => approvePayment(one, [one, two], 'pi_1'), /already linked/);
 });
 
+test('내부 승인만 남은 결제는 Pi 서버 승인을 다시 요청한다', () => {
+  const payment = { id: 'p1', status: 'approved', providerPaymentId: 'pi_1' };
+  const result = approvePayment(payment, [payment], 'pi_1');
+  assert.equal(result.idempotent, true);
+  assert.equal(result.providerRetryRequired, true);
+});
+
+test('완료된 결제는 Pi 서버 승인을 다시 요청하지 않는다', () => {
+  const payment = { id: 'p1', status: 'completed', providerPaymentId: 'pi_1' };
+  const result = approvePayment(payment, [payment], 'pi_1');
+  assert.equal(result.idempotent, true);
+  assert.equal(result.providerRetryRequired, false);
+});
+
 test('서버 승인 전에는 결제를 완료하지 않는다', () => {
   const trade = parcelTrade(); const payment = { id: 'p1', status: 'prepared', providerPaymentId: null };
   assert.throws(() => completePayment(payment, [payment], trade, 'tx1'), /approval is required/);
