@@ -32,6 +32,7 @@ const { assertTradeParty, assertTradeBuyer, assertTradeSeller } = require('./lib
 const { listUserTrades, tradeSnapshot } = require('./lib/trade-view');
 const { listUserRooms } = require('./lib/chat-view');
 const { checklistTrade, assertChecklistBuyer } = require('./lib/checklist');
+const { userReviews } = require('./lib/review-view');
 const { publicProduct } = require('./lib/product-view');
 const { listFavoriteProductIds, addFavorite, removeFavorite } = require('./lib/favorites');
 const { assertReportTarget } = require('./lib/report-target');
@@ -318,6 +319,10 @@ async function handleApi(req, res, url) {
       product: store.findProduct(trade.productId) || null
     }));
     return sendJson(res, 200, { ok: true, items, filters: query });
+  }
+  if (method === 'GET' && pathname === '/api/v1/me/reviews') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    return sendJson(res, 200, { ok: true, items: userReviews(store.state, userId) });
   }
   if (method === 'GET' && pathname === '/api/v1/me/chat-rooms') {
     const userId = requireUserId(req, res); if (!userId) return;
