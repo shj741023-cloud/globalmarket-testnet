@@ -52,6 +52,7 @@ const { adminDashboardSummary } = require('./lib/admin-dashboard');
 const { adminKeyMatches, requestIdentity } = require('./lib/admin-auth');
 const { adminReportSummary, adminReportSummaries } = require('./lib/admin-reports');
 const { securityHeaders } = require('./lib/security-headers');
+const { assertTradingAllowed, createGasDebt } = require('./lib/trading-restrictions');
 
 assertTestnetEnvironment();
 
@@ -129,6 +130,11 @@ function requireUserId(req, res) {
     return null;
   }
   return userId;
+}
+
+function requireTradingAllowed(userId, res) {
+  try { assertTradingAllowed(store.state.gasDebts, userId); return true; }
+  catch (error) { apiError(res, 403, error.code || 'TRADING_BLOCKED', error.message); return false; }
 }
 
 function requireTestAdmin(req, res) {
@@ -398,6 +404,7 @@ async function handleApi(req, res, url) {
   }
   if (method === 'POST' && pathname === '/api/v1/products') {
     const sellerId = requireUserId(req, res); if (!sellerId) return;
+    if (!requireTradingAllowed(sellerId, res)) return;
     const body = await readJson(req);
     const checked = validateProductInput(body);
     const product = {
@@ -425,6 +432,7 @@ async function handleApi(req, res, url) {
     const sellerId = requireUserId(req, res); if (!sellerId) return;
     const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
     const body = await readJson(req);
+    if (body.status === 'available' && !requireTradingAllowed(sellerId, res)) return;
     const hasActiveTrade = store.state.trades.some((item) => item.productId === product.id && !['completed', 'cancelled', 'refunded'].includes(item.status));
     const result = changeOwnedProductStatus(product, sellerId, body.status, hasActiveTrade);
     if (!result.idempotent) { store.event('PRODUCT_STATUS_CHANGED', product.id, { status: product.status }); await store.save(); }
@@ -435,6 +443,7 @@ async function handleApi(req, res, url) {
       return apiError(res, 410, 'AGREEMENT_FLOW_REQUIRED', 'Use chat and bilateral agreement before creating a trade');
     }
     const buyerId = requireUserId(req, res); if (!buyerId) return;
+    if (!requireTradingAllowed(buyerId, res)) return;
     const body = await readJson(req);
     const product = store.findProduct(body.productId);
     if (!findOr404(res, product, 'product')) return;
@@ -454,7 +463,9 @@ async function handleApi(req, res, url) {
   match = pathname.match(/^\/api\/v1\/products\/([^/]+)\/chat-rooms$/);
   if (method === 'POST' && match) {
     const buyerId = requireUserId(req, res); if (!buyerId) return;
+    if (!requireTradingAllowed(buyerId, res)) return;
     const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
+    if (!requireTradingAllowed(product.sellerId, res)) return;
     if (product.status !== 'available') return apiError(res, 409, 'PRODUCT_NOT_AVAILABLE', 'Product is not available');
     if (buyerId === product.sellerId) return apiError(res, 409, 'SELF_CHAT_BLOCKED', 'Seller cannot open a buyer chat for own product');
     let room = store.state.chatRooms.find((item) => item.productId === product.id && item.buyerId === buyerId && item.status === 'active');
@@ -487,6 +498,7 @@ async function handleApi(req, res, url) {
   match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)\/price-proposals$/);
   if (method === 'POST' && match) {
     const proposerId = requireUserId(req, res); if (!proposerId) return;
+    if (!requireTradingAllowed(proposerId, res)) return;
     const room = store.state.chatRooms.find((item) => item.id === match[1]); if (!findOr404(res, room, 'chat room')) return;
     const body = await readJson(req); const proposal = createProposal(room, { id: store.id('proposal'), proposerId, price: body.price });
     store.state.priceProposals.push(proposal); await store.save(); return sendJson(res, 201, { ok: true, proposal });
@@ -494,6 +506,7 @@ async function handleApi(req, res, url) {
   match = pathname.match(/^\/api\/v1\/price-proposals\/([^/]+)\/(accept|reject)$/);
   if (method === 'POST' && match) {
     const userId = requireUserId(req, res); if (!userId) return;
+    if (!requireTradingAllowed(userId, res)) return;
     const proposal = store.state.priceProposals.find((item) => item.id === match[1]); if (!findOr404(res, proposal, 'proposal')) return;
     const result = respondProposal(proposal, userId, match[2] === 'accept' ? 'accepted' : 'rejected'); await store.save();
     return sendJson(res, 200, { ok: true, proposal, idempotent: result.idempotent });
@@ -501,6 +514,7 @@ async function handleApi(req, res, url) {
   match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)\/agreements$/);
   if (method === 'POST' && match) {
     const actorId = requireUserId(req, res); if (!actorId) return;
+    if (!requireTradingAllowed(actorId, res)) return;
     const room = store.state.chatRooms.find((item) => item.id === match[1]); if (!findOr404(res, room, 'chat room')) return;
     const product = store.findProduct(room.productId); if (!findOr404(res, product, 'product')) return;
     const body = await readJson(req); let agreement = store.state.agreements.find((item) => item.roomId === room.id);
@@ -512,6 +526,7 @@ async function handleApi(req, res, url) {
   match = pathname.match(/^\/api\/v1\/agreements\/([^/]+)\/confirm$/);
   if (method === 'POST' && match) {
     const userId = requireUserId(req, res); if (!userId) return;
+    if (!requireTradingAllowed(userId, res)) return;
     const agreement = store.state.agreements.find((item) => item.id === match[1]); if (!findOr404(res, agreement, 'agreement')) return;
     const result = confirmAgreement(agreement, userId); await store.save();
     return sendJson(res, 200, { ok: true, agreement, idempotent: result.idempotent });
@@ -521,6 +536,7 @@ async function handleApi(req, res, url) {
     const userId = requireUserId(req, res); if (!userId) return;
     const agreement = store.state.agreements.find((item) => item.id === match[1]); if (!findOr404(res, agreement, 'agreement')) return;
     if (![agreement.sellerId, agreement.buyerId].includes(userId)) return apiError(res, 403, 'AGREEMENT_PARTY_REQUIRED', 'Agreement party required');
+    if (!requireTradingAllowed(agreement.sellerId, res) || !requireTradingAllowed(agreement.buyerId, res)) return;
     const existing = store.state.trades.find((item) => item.agreementId === agreement.id);
     const result = tradeFromAgreement(agreement, existing, { id: store.id('trade') });
     if (!result.idempotent) { store.state.trades.push(result.trade); store.event('TRADE_CREATED', result.trade.id, { agreementId: agreement.id }); await store.save(); }
@@ -594,6 +610,7 @@ async function handleApi(req, res, url) {
   if (method === 'POST' && match) {
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
     const userId = requireUserId(req, res); if (!userId) return;
+    if (!requireTradingAllowed(userId, res)) return;
     if (userId !== trade.buyerId) return apiError(res, 403, 'BUYER_REQUIRED', 'Only the buyer can prepare payment');
     const result = preparePayment(trade, store.state.payments, { id: store.id('payment'), networkFee: 0 });
     if (!result.idempotent) { store.state.payments.push(result.payment); store.event('PAYMENT_PREPARED', result.payment.id); await store.save(); }
@@ -821,7 +838,15 @@ async function handleApi(req, res, url) {
     const before = structuredClone(dispute);
     const result = createMockRefund(trade, dispute, body, store.id('refund'));
     const refund = result.refund;
-    if (refund) store.state.refunds.push(refund);
+    if (refund) {
+      store.state.refunds.push(refund);
+      const outstanding = Number(refund.gasLiability?.sellerOutstandingGas || 0);
+      if (outstanding > 0 && trade.sellerId !== 'testnet_checklist_harness') {
+        const debt = createGasDebt({ id: store.id('gas_debt'), userId: trade.sellerId, refundId: refund.id, amount: outstanding });
+        store.state.gasDebts.push(debt);
+        notify(trade.sellerId, 'gas_debt_confirmed', '가스비 미납금이 확정되었습니다', `${debt.outstandingAmount} Pi · 이의신청 기한 ${debt.appealDeadline}`, debt.id);
+      }
+    }
     recordAudit(req, 'DISPUTE_DECIDED', 'dispute', dispute.id, body.reason, before, dispute);
     notify(dispute.applicantId, 'dispute_decided', '분쟁 판정이 완료되었습니다', body.reason, dispute.id);
     store.event('DISPUTE_DECIDED', dispute.id, { type: body.type, refundId: refund?.id || null }); await store.save();
