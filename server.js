@@ -186,7 +186,7 @@ function applySettlementDebtOffsets(trade, settlement) {
     if (!item) { item = createCompensation({ id:store.id('gas_compensation'), buyerId:sourceTrade.buyerId, refundId:refund.id, debtId:allocation.debtId, confirmedAmount:claim, recoveredAmount:allocation.amount }); store.state.gasCompensations.push(item); }
     else { item.recoveredAmount=Math.min(item.confirmedAmount,item.recoveredAmount+allocation.amount); item.unrecoveredAmount=Math.max(0,item.confirmedAmount-item.recoveredAmount); item.currentlyPayableAmount=item.recoveredAmount; }
   }
-  notify(trade.sellerId,'settlement_debt_offset','정산금에서 미납금이 우선 차감되었습니다',`차감 ${offset.offsetAmount} Pi · 최종 정산 ${offset.sellerNetAmount} Pi`,settlement.id);
+  if (offset.offsetAmount > 0) notify(trade.sellerId,'settlement_debt_offset','정산금에서 미납금이 우선 차감되었습니다',`차감 ${offset.offsetAmount} Pi · 최종 정산 ${offset.sellerNetAmount} Pi`,settlement.id);
   return offset;
 }
 
@@ -727,8 +727,9 @@ async function handleApi(req, res, url) {
     if (!requireTestAdmin(req, res)) return;
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
     const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement') });
-    if (!result.idempotent) {
-      applySettlementDebtOffsets(trade, result.settlement); store.event('MOCK_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
+    const offset = Number(result.settlement.netAmount) > 0 ? applySettlementDebtOffsets(trade, result.settlement) : { offsetAmount: 0 };
+    if (!result.idempotent || offset.offsetAmount > 0) {
+      store.event('MOCK_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
     }
     return sendJson(res, result.idempotent ? 200 : 201, { ok: true, ...result });
   }
@@ -739,8 +740,8 @@ async function handleApi(req, res, url) {
     assertChecklistBuyer(trade, userId);
     const partialRefund = store.state.refunds.find((item) => item.tradeId === trade.id && item.type === 'partial');
     const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement'), grossAmount: partialRefund?.retainedAmount });
-    if (!result.idempotent) {
-      applySettlementDebtOffsets(trade, result.settlement);
+    const offset = Number(result.settlement.netAmount) > 0 ? applySettlementDebtOffsets(trade, result.settlement) : { offsetAmount: 0 };
+    if (!result.idempotent || offset.offsetAmount > 0) {
       trade.status = 'completed'; trade.completedAt = result.settlement.completedAt;
       store.event('PI_CHECKLIST_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
     }
