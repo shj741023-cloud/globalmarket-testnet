@@ -570,9 +570,28 @@ function bindTradeActions(detail) {
   $('actionReport')?.addEventListener('click', async () => { const reason = prompt('신고 사유를 입력하세요'); if (!reason) return; try { await api('/api/v1/reports', { method: 'POST', body: JSON.stringify({ targetType: 'trade', targetId: trade.id, reason }) }); alert('신고가 접수됐습니다. 접수만으로 상대방 신뢰점수는 변경되지 않습니다.'); await loadNotifications(); } catch (error) { alert(error.message); } });
 }
 
+const legacyGasNotificationTypes = new Set([
+  'gas_compensation_paid',
+  'gas_debt_confirmed',
+  'gas_debt_paid',
+  'gas_debt_appealed',
+  'gas_debt_appeal_decided',
+  'settlement_debt_offset'
+]);
+
+function notificationView(item) {
+  if (!legacyGasNotificationTypes.has(item.type)) return item;
+  return {
+    ...item,
+    statusLabel: '과거 Testnet 기능시험 기록',
+    title: `[과거 기록] ${item.title}`,
+    body: `${item.body} · 현재 가스비 각자 부담 정책에서는 사용하지 않는 시험 기록입니다.`
+  };
+}
+
 async function loadNotifications() {
   const { items } = await api('/api/v1/notifications');
-  $('notifications').innerHTML = items.length ? items.slice(0, 20).map((item) => `<button class="management-card ${item.readAt ? '' : 'unread'}" data-notification="${escapeHtml(item.id)}"><div><small>${item.readAt ? '읽음' : '새 알림'}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p></div></button>`).join('') : '<p class="empty">새로운 알림이 없습니다.</p>';
+  $('notifications').innerHTML = items.length ? items.slice(0, 20).map(notificationView).map((item) => `<button class="management-card ${item.readAt ? '' : 'unread'}" data-notification="${escapeHtml(item.id)}"><div><small>${escapeHtml(item.statusLabel || (item.readAt ? '읽음' : '새 알림'))}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p></div></button>`).join('') : '<p class="empty">새로운 알림이 없습니다.</p>';
   document.querySelectorAll('[data-notification]').forEach((button) => button.addEventListener('click', async () => { try { await api(`/api/v1/notifications/${button.dataset.notification}/read`, { method: 'POST' }); await loadNotifications(); } catch (error) { alert(error.message); } }));
 }
 async function loadMyReports() {
