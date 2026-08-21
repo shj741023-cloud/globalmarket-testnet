@@ -14,6 +14,7 @@ test('환불 판정은 관리자 전용이고 사용자는 분쟁 접수 전에 
   assert.match(app, /분쟁·환불 가스비 필수 안내/);
   assert.match(app, /최초 결제 가스비 0\.01 Pi는 반환되지 않습니다/);
   assert.match(app, /가스비 보상은 책임자에게 실제 회수된 뒤 별도로 지급/);
+  assert.match(app, /Testnet 정산 재확인/);
   assert.match(terms, /전액환불에는 구매자 환불 송금 가스비/);
   assert.match(terms, /부분환불에는 구매자 환불 송금과 판매자 정산 송금에 각각 가스비/);
 });
