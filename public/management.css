@@ -1,8 +1,10 @@
-.management-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-.management-tabs button { flex: 1; padding: 11px; border-radius: 10px; background: #edf2ef; color: #52645d; }
+.management-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; min-width: 0; }
+.management-tabs button { flex: 1 1 110px; min-width: 0; padding: 11px; border-radius: 10px; background: #edf2ef; color: #52645d; white-space: normal; word-break: keep-all; }
 .management-tabs button.active { background: #132a22; color: #fff; }
 .management-list { display: grid; gap: 10px; }
-.management-card { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid #d9ddd7; border-radius: 16px; background: #fffefa; text-align: left; color: #132a22; }
+.management-card { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid #d9ddd7; border-radius: 16px; background: #fffefa; text-align: left; color: #132a22; overflow: hidden; }
+.management-card > * { min-width: 0; }
+.management-card h3, .management-card p, .management-card small { overflow-wrap: anywhere; }
 .management-card h3 { margin: 4px 0; }
 .management-card p, .management-card small { margin: 0; color: #64736d; }
 .management-card > button { padding: 9px 11px; border-radius: 9px; background: #edf2ef; white-space: nowrap; }
@@ -64,3 +66,13 @@
 .trust-summary div { display: grid; gap: 3px; padding: 12px; border-radius: 12px; background: #dff2a6; }
 .trust-summary small { color: #52645d; }
 @media (max-width: 520px) { .trust-summary { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) {
+  .management-tabs button { flex-basis: calc(50% - 4px); }
+  .management-card { align-items: stretch; flex-direction: column; gap: 12px; }
+  .management-card > button, .card-actions button { width: 100%; white-space: normal; }
+  .card-actions { justify-content: stretch; }
+  .search-form { grid-template-columns: 1fr; }
+  .search-form input:first-child { grid-column: auto; }
+  .admin-report-card .actions { display: grid; grid-template-columns: 1fr; width: 100%; margin-top: 14px; }
+  .admin-report-card select, .admin-report-card .actions button { width: 100%; min-width: 0; }
+}
