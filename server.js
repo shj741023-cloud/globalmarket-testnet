@@ -63,6 +63,7 @@ const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const store = new Store(path.join(__dirname, 'data', 'testnet-db.json'));
 const rateLimiter = new RateLimiter();
+const LEGACY_GAS_DEBT_COMPENSATION_ENABLED = false;
 
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -136,8 +137,9 @@ function requireUserId(req, res) {
 }
 
 function requireTradingAllowed(userId, res) {
-  try { assertTradingAllowed(store.state.gasDebts, userId); return true; }
-  catch (error) { apiError(res, 403, error.code || 'TRADING_BLOCKED', error.message); return false; }
+  // Legacy Testnet gas-debt records are retained for audit only. The current
+  // policy never blocks trading because each party bears its own gas fee.
+  return true;
 }
 
 function requireTestAdmin(req, res) {
@@ -177,6 +179,8 @@ function recordAudit(req, action, targetType, targetId, reason, before, after) {
 }
 
 function applySettlementDebtOffsets(trade, settlement) {
+  // Legacy recovery flow is intentionally inactive under the simple policy.
+  if (!LEGACY_GAS_DEBT_COMPENSATION_ENABLED) return { grossAvailable: Number(settlement.netAmount), offsetAmount: 0, sellerNetAmount: Number(settlement.netAmount), allocations: [] };
   const offset = offsetDebts(store.state.gasDebts, trade.sellerId, settlement.netAmount);
   settlement.debtOffsetAmount = offset.offsetAmount; settlement.netAmount = offset.sellerNetAmount; settlement.debtAllocations = offset.allocations;
   for (const allocation of offset.allocations) {
@@ -188,6 +192,17 @@ function applySettlementDebtOffsets(trade, settlement) {
   }
   if (offset.offsetAmount > 0) notify(trade.sellerId,'settlement_debt_offset','정산금에서 미납금이 우선 차감되었습니다',`차감 ${offset.offsetAmount} Pi · 최종 정산 ${offset.sellerNetAmount} Pi`,settlement.id);
   return offset;
+}
+
+function applySimpleGasPolicy(refund, settlement) {
+  if (!refund || refund.gasLiability?.gasPolicy !== 'each_party_bears_own_fee') return false;
+  const before = Number(settlement.netAmount || 0);
+  const after = Number(refund.gasLiability.sellerFinalSettlement || 0);
+  settlement.netAmountBeforeGas = before;
+  settlement.networkGasFee = Number(refund.settlementTransferGasFee || 0);
+  settlement.netAmount = after;
+  settlement.gasPolicy = 'each_party_bears_own_fee';
+  return before !== after;
 }
 
 function findOr404(res, item, type) {
@@ -727,8 +742,10 @@ async function handleApi(req, res, url) {
     if (!requireTestAdmin(req, res)) return;
     const trade = store.findTrade(match[1]); if (!findOr404(res, trade, 'trade')) return;
     const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement') });
+    const refund = store.state.refunds.find((item) => item.tradeId === trade.id && item.type === 'partial');
+    const gasChanged = !result.idempotent && applySimpleGasPolicy(refund, result.settlement);
     const offset = Number(result.settlement.netAmount) > 0 ? applySettlementDebtOffsets(trade, result.settlement) : { offsetAmount: 0 };
-    if (!result.idempotent || offset.offsetAmount > 0) {
+    if (!result.idempotent || gasChanged || offset.offsetAmount > 0) {
       store.event('MOCK_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
     }
     return sendJson(res, result.idempotent ? 200 : 201, { ok: true, ...result });
@@ -740,8 +757,9 @@ async function handleApi(req, res, url) {
     assertChecklistBuyer(trade, userId);
     const partialRefund = store.state.refunds.find((item) => item.tradeId === trade.id && item.type === 'partial');
     const result = completeMockSettlement(trade, store.state.settlements, { id: store.id('settlement'), grossAmount: partialRefund?.retainedAmount });
+    const gasChanged = !result.idempotent && applySimpleGasPolicy(partialRefund, result.settlement);
     const offset = Number(result.settlement.netAmount) > 0 ? applySettlementDebtOffsets(trade, result.settlement) : { offsetAmount: 0 };
-    if (!result.idempotent || offset.offsetAmount > 0) {
+    if (!result.idempotent || gasChanged || offset.offsetAmount > 0) {
       trade.status = 'completed'; trade.completedAt = result.settlement.completedAt;
       store.event('PI_CHECKLIST_SETTLEMENT_COMPLETED', result.settlement.id); await store.save();
     }
