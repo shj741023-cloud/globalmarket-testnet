@@ -160,6 +160,16 @@ async function loadAdminSuggestions() {
   return items.length;
 }
 
+function renderAdminAnnouncements(items) {
+  $('adminAnnouncements').innerHTML = `<button id="createAdminAnnouncement" class="primary wide" type="button">새 운영 공지 등록</button>${items.length ? items.map((item) => `<article class="management-card"><div><strong>${escapeHtml(item.title)}</strong><p class="meta">${item.status === 'active' ? '게시 중' : '게시 종료'} · ${escapeHtml(new Date(item.createdAt).toLocaleString())}</p></div><p>${escapeHtml(item.body)}</p>${item.status === 'active' ? `<button class="secondary" type="button" data-announcement-archive="${escapeHtml(item.id)}">공지 종료</button>` : `<p class="meta">종료 사유: ${escapeHtml(item.archiveReason || '')}</p>`}</article>`).join('') : '<p class="empty">등록된 운영 공지가 없습니다.</p>'}`;
+  $('createAdminAnnouncement').addEventListener('click', createAdminAnnouncement);
+  $('adminAnnouncements').querySelectorAll('[data-announcement-archive]').forEach((button) => button.addEventListener('click', () => archiveAdminAnnouncement(button.dataset.announcementArchive)));
+}
+
+async function loadAdminAnnouncements() { const { items } = await adminApi('/api/v1/admin/announcements'); renderAdminAnnouncements(items); return items.filter((item) => item.status === 'active').length; }
+async function createAdminAnnouncement() { const title = prompt('모든 고객에게 표시할 운영 공지 제목을 입력하세요.'); if (!title?.trim()) return; const body = prompt('이용 주의사항 또는 편의사항을 입력하세요.'); if (!body?.trim() || !confirm('이 내용을 모든 고객의 상단 알림종에 게시할까요?')) return; try { await adminApi('/api/v1/admin/announcements', { method: 'POST', body: JSON.stringify({ title: title.trim(), body: body.trim() }) }); $('adminResult').textContent = '관리팀 운영 공지를 게시했습니다.'; await loadAdminAnnouncements(); } catch (error) { $('adminResult').textContent = error.message; } }
+async function archiveAdminAnnouncement(id) { const reason = prompt('공지 종료 사유를 입력하세요.'); if (!reason?.trim()) return; try { await adminApi(`/api/v1/admin/announcements/${encodeURIComponent(id)}/archive`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); $('adminResult').textContent = '운영 공지 게시를 종료했습니다.'; await loadAdminAnnouncements(); } catch (error) { $('adminResult').textContent = error.message; } }
+
 async function closeAdminSuggestion(id) {
   const reason = prompt('처리 내용 또는 답변을 입력하세요. 사용자에게 알림으로 전달됩니다.');
   if (!reason?.trim()) return;
@@ -190,7 +200,7 @@ async function decideAdminReport(reportId) {
   } catch (error) { $('adminResult').textContent = error.message; }
 }
 
-const adminActionNames = { USER_STATUS_CHANGED: '회원 상태 변경', PRODUCT_REVIEW_DECIDED: '상품 검토 판정', REPORT_ASSIGNED: '신고 담당 지정', REPORT_DECIDED: '신고 판정', DISPUTE_DECIDED: '분쟁 판정', SUGGESTION_CLOSED: '건의사항 처리' };
+const adminActionNames = { USER_STATUS_CHANGED: '회원 상태 변경', PRODUCT_REVIEW_DECIDED: '상품 검토 판정', REPORT_ASSIGNED: '신고 담당 지정', REPORT_DECIDED: '신고 판정', DISPUTE_DECIDED: '분쟁 판정', SUGGESTION_CLOSED: '건의사항 처리', ANNOUNCEMENT_CREATED: '운영 공지 등록', ANNOUNCEMENT_ARCHIVED: '운영 공지 종료' };
 
 async function loadAdminAudit() {
   const { items } = await adminApi('/api/v1/admin/audit-logs');
@@ -369,6 +379,7 @@ function showAdminSection(name) {
   const reports = name === 'reports';
   const disputes = name === 'disputes';
   const suggestions = name === 'suggestions';
+  const announcements = name === 'announcements';
   const gasDebts = name === 'gasDebts';
   $('adminUsers').classList.toggle('hidden', !users);
   $('adminProducts').classList.toggle('hidden', !products);
@@ -377,6 +388,7 @@ function showAdminSection(name) {
   $('adminReports').classList.toggle('hidden', !reports);
   $('adminDisputes').classList.toggle('hidden', !disputes);
   $('adminSuggestions').classList.toggle('hidden', !suggestions);
+  $('adminAnnouncements').classList.toggle('hidden', !announcements);
   $('adminGasDebts').classList.toggle('hidden', !gasDebts);
   $('mockPayCompensations').classList.toggle('hidden', !gasDebts);
   $('adminAudit').classList.toggle('hidden', name !== 'audit');
@@ -388,6 +400,7 @@ function showAdminSection(name) {
   $('showAdminReports').classList.toggle('active', reports);
   $('showAdminDisputes').classList.toggle('active', disputes);
   $('showAdminSuggestions').classList.toggle('active', suggestions);
+  $('showAdminAnnouncements').classList.toggle('active', announcements);
   $('showAdminGasDebts').classList.toggle('active', gasDebts);
   $('showAdminAudit').classList.toggle('active', name === 'audit');
   if (state.adminKey) loadAdminDashboard().catch((error) => { $('adminResult').textContent = error.message; });
@@ -459,7 +472,7 @@ async function loadCategories() {
 }
 
 function hideMainPanels() {
-  ['productDetailPanel', 'myPanel', 'registerPanel', 'editProductPanel', 'chatPanel', 'tradePanel', 'adminPanel', 'suggestionPanel'].forEach((id) => $(id).classList.add('hidden'));
+  ['productDetailPanel', 'myPanel', 'announcementPanel', 'registerPanel', 'editProductPanel', 'chatPanel', 'tradePanel', 'adminPanel', 'suggestionPanel'].forEach((id) => $(id).classList.add('hidden'));
 }
 
 function showHome() {
@@ -592,7 +605,7 @@ async function loginPi() {
   const session = await api('/api/v1/auth/pi', { method: 'POST', body: JSON.stringify({ accessToken: auth.accessToken }) });
   state.sessionToken = session.sessionToken;
   applyAuthenticatedUser(session.user, '서버 검증 완료');
-  await Promise.all([loadMyMarket(), loadMySuggestions()]);
+  await Promise.all([loadMyMarket(), loadMySuggestions(), loadAnnouncements()]);
 }
 
 function applyAuthenticatedUser(user, message = '로그인 유지 중') {
@@ -608,7 +621,7 @@ async function restoreSession() {
   try {
     const { user } = await api('/api/v1/me');
     applyAuthenticatedUser(user);
-    await Promise.all([loadMyMarket(), loadMySuggestions()]);
+    await Promise.all([loadMyMarket(), loadMySuggestions(), loadAnnouncements()]);
   } catch {
     state.user = null;
     state.sessionToken = null;
@@ -765,11 +778,22 @@ function notificationView(item) {
 
 async function loadNotifications() {
   const { items } = await api('/api/v1/notifications');
-  const unreadCount = items.filter((item) => !item.readAt).length;
-  $('notificationBadge').textContent = unreadCount > 99 ? '99+' : String(unreadCount);
-  $('notificationBadge').classList.toggle('hidden', unreadCount === 0);
   $('notifications').innerHTML = items.length ? items.slice(0, 20).map(notificationView).map((item) => `<button class="management-card ${item.readAt ? '' : 'unread'}" data-notification="${escapeHtml(item.id)}"><div><small>${escapeHtml(item.statusLabel || (item.readAt ? '읽음' : '새 알림'))}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p></div></button>`).join('') : '<p class="empty">새로운 알림이 없습니다.</p>';
   document.querySelectorAll('[data-notification]').forEach((button) => button.addEventListener('click', async () => { try { await api(`/api/v1/notifications/${button.dataset.notification}/read`, { method: 'POST' }); await loadNotifications(); } catch (error) { alert(error.message); } }));
+}
+
+async function loadAnnouncements(markRead = false) {
+  const { items } = await api('/api/v1/announcements');
+  const unreadCount = items.filter((item) => !item.read).length;
+  $('notificationBadge').textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+  $('notificationBadge').classList.toggle('hidden', unreadCount === 0);
+  $('announcements').innerHTML = items.length ? items.map((item) => `<article class="management-card ${item.read ? '' : 'unread'}"><div><small>${item.read ? '확인한 관리팀 알림' : '새 관리팀 알림'}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p><p class="meta">${escapeHtml(new Date(item.createdAt).toLocaleString())}</p></div></article>`).join('') : '<p class="empty">현재 게시된 관리팀 알림이 없습니다.</p>';
+  if (markRead && unreadCount) {
+    await api('/api/v1/announcements/read-all', { method: 'POST', body: '{}' });
+    $('notificationBadge').classList.add('hidden');
+    $('announcements').querySelectorAll('.unread').forEach((item) => item.classList.remove('unread'));
+  }
+  return items.length;
 }
 async function loadMyReports() {
   const { items } = await api('/api/v1/me/reports');
@@ -942,9 +966,9 @@ $('navSearch').addEventListener('click', showSearch);
 $('headerHome').addEventListener('click', showHome);
 $('headerSearch').addEventListener('click', showSearch);
 $('headerNotifications').addEventListener('click', () => {
-  if (!state.user) return alert('Pi Testnet 로그인 후 알림을 확인할 수 있습니다.');
-  showFeaturePanel('myPanel');
-  loadMyMarket().then(() => $('notifications').scrollIntoView({ behavior: 'smooth', block: 'start' })).catch((error) => alert(error.message));
+  if (!state.user) return alert('Pi Testnet 로그인 후 관리팀 알림을 확인할 수 있습니다.');
+  showFeaturePanel('announcementPanel');
+  loadAnnouncements(true).catch((error) => alert(error.message));
 });
 $('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); showFeaturePanel('registerPanel'); });
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('chatPanel'); loadChats().catch((error) => alert(error.message)); });
@@ -963,6 +987,7 @@ $('showAdminUsers').addEventListener('click', () => showAdminSection('users'));
 $('showAdminProducts').addEventListener('click', () => { showAdminSection('products'); loadAdminProducts().then((count) => { $('adminResult').textContent = `상품 검토 대기 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminPopular').addEventListener('click', () => { showAdminSection('popular'); loadAdminPopularProducts().then((count) => { $('adminResult').textContent = `선정 가능한 판매 중 상품 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminPromotions').addEventListener('click', () => { showAdminSection('promotions'); loadAdminPromotions().then((count) => { $('adminResult').textContent = `광고·협찬 계약 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
+$('showAdminAnnouncements').addEventListener('click', () => { showAdminSection('announcements'); loadAdminAnnouncements().then((count) => { $('adminResult').textContent = `게시 중인 운영 공지 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminReports').addEventListener('click', () => { showAdminSection('reports'); loadAdminReports().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminDisputes').addEventListener('click', () => { showAdminSection('disputes'); loadAdminDisputes().then((count) => { $('adminResult').textContent = `택배 안전거래 분쟁 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminSuggestions').addEventListener('click', () => { showAdminSection('suggestions'); loadAdminSuggestions().then((count) => { $('adminResult').textContent = `접수된 건의사항 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });

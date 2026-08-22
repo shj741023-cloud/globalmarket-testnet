@@ -428,6 +428,21 @@ async function handleApi(req, res, url) {
     const userId = requireUserId(req, res); if (!userId) return;
     return sendJson(res, 200, { ok: true, items: store.state.notifications.filter((item) => item.userId === userId).slice(-100).reverse() });
   }
+  if (method === 'GET' && pathname === '/api/v1/announcements') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const readIds = new Set(store.state.announcementReads.filter((item) => item.userId === userId).map((item) => item.announcementId));
+    const items = store.state.announcements.filter((item) => item.status === 'active').slice().reverse().map((item) => ({ ...item, read: readIds.has(item.id) }));
+    return sendJson(res, 200, { ok: true, items });
+  }
+  if (method === 'POST' && pathname === '/api/v1/announcements/read-all') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const readIds = new Set(store.state.announcementReads.filter((item) => item.userId === userId).map((item) => item.announcementId));
+    const unread = store.state.announcements.filter((item) => item.status === 'active' && !readIds.has(item.id));
+    const readAt = new Date().toISOString();
+    unread.forEach((item) => store.state.announcementReads.push({ id: store.id('announcement_read'), announcementId: item.id, userId, readAt }));
+    if (unread.length) await store.save();
+    return sendJson(res, 200, { ok: true, markedRead: unread.length });
+  }
   if (method === 'GET' && pathname === '/api/v1/me/gas-debts') {
     const userId = requireUserId(req, res); if (!userId) return;
     return sendJson(res, 200, { ok: true, items: store.state.gasDebts.filter((item) => item.userId === userId).slice().reverse() });
@@ -1075,6 +1090,35 @@ async function handleApi(req, res, url) {
     if (!requireTestAdmin(req, res)) return;
     const items = store.state.suggestions.slice().reverse().map(({ userId, ...item }) => ({ ...item, user: userId }));
     return sendJson(res, 200, { ok: true, items });
+  }
+  if (method === 'GET' && pathname === '/api/v1/admin/announcements') {
+    if (!requireTestAdmin(req, res)) return;
+    return sendJson(res, 200, { ok: true, items: store.state.announcements.slice().reverse() });
+  }
+  if (method === 'POST' && pathname === '/api/v1/admin/announcements') {
+    if (!requireTestAdmin(req, res)) return;
+    const body = await readJson(req);
+    const title = String(body.title || '').trim(); const content = String(body.body || '').trim();
+    if (title.length < 2 || title.length > 80) return apiError(res, 400, 'INVALID_TITLE', '제목은 2자 이상 80자 이하로 입력하세요.');
+    if (content.length < 5 || content.length > 1000) return apiError(res, 400, 'INVALID_BODY', '내용은 5자 이상 1000자 이하로 입력하세요.');
+    const announcement = { id: store.id('announcement'), title, body: content, status: 'active', createdAt: new Date().toISOString(), createdBy: testAdminId(req) };
+    store.state.announcements.push(announcement);
+    recordAudit(req, 'ANNOUNCEMENT_CREATED', 'announcement', announcement.id, body.reason || '관리팀 운영 공지 등록', null, announcement);
+    await store.save();
+    return sendJson(res, 201, { ok: true, announcement });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/announcements\/([^/]+)\/archive$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const announcement = store.state.announcements.find((item) => item.id === match[1]); if (!findOr404(res, announcement, 'announcement')) return;
+    if (announcement.status === 'archived') return sendJson(res, 200, { ok: true, announcement, idempotent: true });
+    const body = await readJson(req); const reason = String(body.reason || '').trim();
+    if (reason.length < 2) return apiError(res, 400, 'REASON_REQUIRED', '종료 사유를 2자 이상 입력하세요.');
+    const before = structuredClone(announcement);
+    Object.assign(announcement, { status: 'archived', archivedAt: new Date().toISOString(), archivedBy: testAdminId(req), archiveReason: reason });
+    recordAudit(req, 'ANNOUNCEMENT_ARCHIVED', 'announcement', announcement.id, reason, before, announcement);
+    await store.save();
+    return sendJson(res, 200, { ok: true, announcement, idempotent: false });
   }
   match = pathname.match(/^\/api\/v1\/admin\/suggestions\/([^/]+)\/close$/);
   if (method === 'POST' && match) {
