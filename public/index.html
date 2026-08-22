@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/styles.css?v=20260822-5">
   <link rel="stylesheet" href="/payment.css?v=20260820-3">
   <link rel="stylesheet" href="/policy.css">
-  <link rel="stylesheet" href="/management.css?v=20260822-8">
+  <link rel="stylesheet" href="/management.css?v=20260822-9">
 </head>
 <body>
   <header class="topbar">
@@ -73,6 +73,11 @@
       </form>
       <div id="products" class="product-grid" aria-live="polite"></div>
       <button id="loadMoreProducts" class="secondary wide hidden" type="button">상품 더 보기</button>
+      <section id="popularProductsSection" class="popular-products-section">
+        <div class="section-title"><div><p class="eyebrow">POPULAR</p><h2>인기 상품</h2></div></div>
+        <p id="popularProductsEmpty" class="empty compact-empty">아직 등록된 인기 상품이 없습니다.</p>
+        <div id="popularProducts" class="product-grid home-product-row hidden" aria-live="polite"></div>
+      </section>
     </section>
 
     <section id="productDetailPanel" class="panel hidden">
@@ -210,6 +215,6 @@
   </nav>
 
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-  <script src="/app.js?v=20260822-12"></script>
+  <script src="/app.js?v=20260822-13"></script>
 </body>
 </html>

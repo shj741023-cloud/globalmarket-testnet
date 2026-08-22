@@ -60,6 +60,9 @@
 .home-product-row .product .price { font-size: 18px; }
 .home-product-row .product .seller-line, .home-product-row .product .method-row { display: none; }
 .home-product-row .product button { padding: 8px; font-size: 12px; }
+.popular-products-section { margin-top: 18px; }
+.popular-products-section .section-title { margin-bottom: 8px; }
+.compact-empty { padding: 14px; font-size: 12px; }
 .category-browse-bar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 8px; margin-bottom: 14px; padding: 12px; border-radius: 14px; background: #fffefa; border: 1px solid #d9ddd7; }
 .category-browse-title { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .category-browse-bar small { flex: 0 0 auto; color: #64736d; font-size: 13px; }
@@ -114,6 +117,9 @@
   .home-shortcuts button { padding: 8px 2px; font-size: 10px; }
   #marketSection > .section-title { margin: 10px 0 8px; }
   #marketSection > .section-title h2 { font-size: 21px; }
+  .popular-products-section { margin-top: 12px; }
+  .popular-products-section .section-title { margin: 8px 0 6px; }
+  .popular-products-section .section-title h2 { font-size: 21px; }
   .product-grid.home-product-row { grid-auto-columns: 56%; }
   .home-product-row .product .image { height: 92px; }
   .product-grid.category-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

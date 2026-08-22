@@ -419,6 +419,7 @@ function showHome() {
   $('categoryBrowseBar').classList.add('hidden');
   $('marketEyebrow').textContent = 'NEW';
   $('marketTitle').textContent = '최근 등록 상품';
+  $('popularProductsSection').classList.remove('hidden');
   loadProducts().catch((error) => alert(error.message));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -434,6 +435,7 @@ function showSearch() {
   $('categoryBrowseBar').classList.add('hidden');
   $('marketEyebrow').textContent = '상품 찾기';
   $('marketTitle').textContent = '상품 검색';
+  $('popularProductsSection').classList.add('hidden');
   $('marketSection').scrollIntoView({ behavior: 'smooth' });
 }
 
