@@ -294,6 +294,18 @@ async function loadAdminPopularProducts() {
   return items.length;
 }
 
+async function loadAdminPromotions() {
+  const { items, products } = await adminApi('/api/v1/admin/promotion-campaigns');
+  $('adminPromotions').innerHTML = `<button id="createPromotion" class="primary" type="button">광고·협찬 계약 등록</button>` + (items.length ? items.map((item) => `<article class="management-card"><div><small>${item.type === 'sponsorship' ? '협찬' : '광고'} · ${escapeHtml(item.status)}</small><h3>${escapeHtml(item.sponsorName)}</h3><p>${escapeHtml(products.find((product) => product.id === item.productId)?.title || item.productId)} · ${escapeHtml(new Date(item.startAt).toLocaleDateString())}~${escapeHtml(new Date(item.endAt).toLocaleDateString())}</p></div></article>`).join('') : '<p class="empty">등록된 광고·협찬 계약이 없습니다.</p>');
+  $('createPromotion').addEventListener('click', async () => {
+    const productId = prompt(`대상 상품 번호\n${products.map((item) => `${item.id}: ${item.title}`).join('\n')}`); if (!products.some((item) => item.id === productId)) return;
+    const sponsorName = prompt('광고주 또는 협찬사 이름'); if (!sponsorName?.trim()) return;
+    const type = confirm('협찬이면 확인, 광고이면 취소') ? 'sponsorship' : 'advertising'; const startAt = prompt('시작일: 2026-09-01'); const endAt = prompt('종료일: 2026-09-30'); const note = prompt('계약 메모');
+    try { await adminApi('/api/v1/admin/promotion-campaigns', { method:'POST', body:JSON.stringify({ productId, sponsorName, type, startAt, endAt, note }) }); await Promise.all([loadAdminPromotions(), loadAdminAudit()]); } catch(error) { $('adminResult').textContent=error.message; }
+  });
+  return items.length;
+}
+
 async function decideAdminProduct(button) {
   const decision = button.dataset.productDecision;
   const action = decision === 'approve' ? '판매 승인' : '등록 거절';
@@ -351,6 +363,7 @@ function showAdminSection(name) {
   const users = name === 'users';
   const products = name === 'products';
   const popular = name === 'popular';
+  const promotions = name === 'promotions';
   const reports = name === 'reports';
   const disputes = name === 'disputes';
   const suggestions = name === 'suggestions';
@@ -358,6 +371,7 @@ function showAdminSection(name) {
   $('adminUsers').classList.toggle('hidden', !users);
   $('adminProducts').classList.toggle('hidden', !products);
   $('adminPopular').classList.toggle('hidden', !popular);
+  $('adminPromotions').classList.toggle('hidden', !promotions);
   $('adminReports').classList.toggle('hidden', !reports);
   $('adminDisputes').classList.toggle('hidden', !disputes);
   $('adminSuggestions').classList.toggle('hidden', !suggestions);
@@ -368,6 +382,7 @@ function showAdminSection(name) {
   $('showAdminUsers').classList.toggle('active', users);
   $('showAdminProducts').classList.toggle('active', products);
   $('showAdminPopular').classList.toggle('active', popular);
+  $('showAdminPromotions').classList.toggle('active', promotions);
   $('showAdminReports').classList.toggle('active', reports);
   $('showAdminDisputes').classList.toggle('active', disputes);
   $('showAdminSuggestions').classList.toggle('active', suggestions);
@@ -945,6 +960,7 @@ $('clearAdminSearch').addEventListener('click', () => { $('adminUserQuery').valu
 $('showAdminUsers').addEventListener('click', () => showAdminSection('users'));
 $('showAdminProducts').addEventListener('click', () => { showAdminSection('products'); loadAdminProducts().then((count) => { $('adminResult').textContent = `상품 검토 대기 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminPopular').addEventListener('click', () => { showAdminSection('popular'); loadAdminPopularProducts().then((count) => { $('adminResult').textContent = `선정 가능한 판매 중 상품 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
+$('showAdminPromotions').addEventListener('click', () => { showAdminSection('promotions'); loadAdminPromotions().then((count) => { $('adminResult').textContent = `광고·협찬 계약 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminReports').addEventListener('click', () => { showAdminSection('reports'); loadAdminReports().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminDisputes').addEventListener('click', () => { showAdminSection('disputes'); loadAdminDisputes().then((count) => { $('adminResult').textContent = `택배 안전거래 분쟁 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminSuggestions').addEventListener('click', () => { showAdminSection('suggestions'); loadAdminSuggestions().then((count) => { $('adminResult').textContent = `접수된 건의사항 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });

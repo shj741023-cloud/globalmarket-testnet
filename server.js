@@ -58,6 +58,7 @@ const { createMockPayoutBatch } = require('./lib/compensation-payouts');
 const { offsetDebts } = require('./lib/debt-offset');
 const { assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt, decideGasDebtAppeal } = require('./lib/trading-restrictions');
 const { listPopularProducts, setPopularProduct } = require('./lib/popular-products');
+const { createCampaign, endCampaign } = require('./lib/promotion-campaigns');
 
 assertTestnetEnvironment();
 
@@ -1016,6 +1017,27 @@ async function handleApi(req, res, url) {
       id: item.id, title: item.title, price: item.price, region: item.region, images: (item.images || []).slice(0, 1), selected: Boolean(item.popularPlacement?.selectedAt)
     }));
     return sendJson(res, 200, { ok: true, items });
+  }
+  if (method === 'GET' && pathname === '/api/v1/admin/promotion-campaigns') {
+    if (!requireTestAdmin(req, res)) return;
+    const products = store.state.products.filter((item) => ['available', 'reserved'].includes(item.status)).map((item) => ({ id: item.id, title: item.title }));
+    return sendJson(res, 200, { ok: true, items: store.state.promotionCampaigns.slice().reverse(), products });
+  }
+  if (method === 'POST' && pathname === '/api/v1/admin/promotion-campaigns') {
+    if (!requireTestAdmin(req, res)) return;
+    const body = await readJson(req);
+    const product = store.findProduct(body.productId); if (!findOr404(res, product, 'product')) return;
+    const campaign = createCampaign({ ...body, id: store.id('campaign'), adminId: testAdminId(req) });
+    store.state.promotionCampaigns.push(campaign); recordAudit(req, 'PROMOTION_CAMPAIGN_CREATED', 'promotion_campaign', campaign.id, campaign.note || '광고·협찬 계약 등록', null, campaign);
+    await store.save(); return sendJson(res, 201, { ok: true, campaign });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/promotion-campaigns\/([^/]+)\/end$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const campaign = store.state.promotionCampaigns.find((item) => item.id === match[1]); if (!findOr404(res, campaign, 'campaign')) return;
+    const body = await readJson(req); const before = structuredClone(campaign); const result = endCampaign(campaign, testAdminId(req), body.reason);
+    if (!result.idempotent) { recordAudit(req, 'PROMOTION_CAMPAIGN_ENDED', 'promotion_campaign', campaign.id, body.reason, before, campaign); await store.save(); }
+    return sendJson(res, 200, { ok: true, campaign, idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/admin\/popular-products\/([^/]+)$/);
   if (method === 'POST' && match) {
