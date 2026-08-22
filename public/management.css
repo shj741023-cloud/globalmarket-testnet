@@ -15,6 +15,7 @@
 .management-card h3 { margin: 4px 0; }
 .management-card p, .management-card small { margin: 0; color: #64736d; }
 .management-card > button { padding: 9px 11px; border-radius: 9px; background: #edf2ef; white-space: nowrap; }
+.management-card > button.primary { background: #132a22; color: #fff; border: 2px solid #132a22; font-weight: 900; box-shadow: 0 3px 10px rgba(19, 42, 34, .18); }
 .trade-card { cursor: pointer; }
 .empty { padding: 24px; border-radius: 16px; background: #edf2ef; text-align: center; color: #64736d; }
 .form-notice { padding: 12px; border-radius: 12px; background: #fff0cf; font-size: 13px; }

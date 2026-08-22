@@ -31,3 +31,8 @@ test('관리자 키는 브라우저 영구 저장소에 기록하지 않는다',
   assert.match(app, /state\.adminKey = null/);
   assert.match(html, /type="password"/);
 });
+
+test('건의사항 처리 버튼은 관리자 카드에서 진한 색으로 표시한다', () => {
+  const managementCss = fs.readFileSync(path.join(publicDir, 'management.css'), 'utf8');
+  assert.match(managementCss, /\.management-card\s*>\s*button\.primary\s*\{[^}]*background:\s*#132a22[^}]*color:\s*#fff/s);
+});
