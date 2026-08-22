@@ -415,6 +415,7 @@ function showHome() {
   $('homeCategories').classList.remove('hidden');
   $('marketSection').classList.remove('hidden');
   $('searchForm').classList.add('hidden');
+  $('categoryBrowseBar').classList.add('hidden');
   loadProducts().catch((error) => alert(error.message));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -427,6 +428,7 @@ function showSearch() {
   $('homeCategories').classList.add('hidden');
   $('marketSection').classList.remove('hidden');
   $('searchForm').classList.remove('hidden');
+  $('categoryBrowseBar').classList.add('hidden');
   $('marketSection').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -434,6 +436,9 @@ async function openCategory(categoryId) {
   showSearch();
   $('searchForm').reset();
   $('searchCategory').value = categoryId;
+  $('searchForm').classList.add('hidden');
+  $('categoryBrowseBar').classList.remove('hidden');
+  $('selectedCategoryName').textContent = state.categories.find((item) => item.id === categoryId)?.name || '카테고리 상품';
   await loadProducts(`categoryId=${encodeURIComponent(categoryId)}`);
 }
 
@@ -875,6 +880,8 @@ $('homeSearch').addEventListener('click', showSearch);
 $('homeRegister').addEventListener('click', () => $('navRegister').click());
 $('homeMy').addEventListener('click', () => $('navMy').click());
 $('homeQna').addEventListener('click', () => { showFeaturePanel('suggestionPanel'); loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }); });
+$('categoryFilters').addEventListener('click', () => { $('searchForm').classList.toggle('hidden'); if (!$('searchForm').classList.contains('hidden')) $('searchForm').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+$('categoryHome').addEventListener('click', showHome);
 $('openAdmin').addEventListener('click', () => showFeaturePanel('adminPanel'));
 $('closeAdmin').addEventListener('click', () => { stopAdminAlertPolling(); state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminProducts').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminSuggestions').innerHTML = ''; $('adminGasDebts').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminAlerts').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
 $('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { const [, reportCount] = await Promise.all([loadAdminUsers(), loadAdminReports()]); $('adminUnlockForm').classList.add('hidden'); $('adminWorkspace').classList.remove('hidden'); showAdminSection('users'); $('adminKey').value = ''; await loadAdminDashboard(); startAdminAlertPolling(); $('adminResult').textContent = `관리자 확인 완료 · 접수된 신고 ${reportCount}건`; } catch (error) { stopAdminAlertPolling(); state.adminKey = null; $('adminResult').textContent = error.message; } });
