@@ -380,6 +380,7 @@ async function loadProducts(query = '', append = false) {
   state.productHasMore = Boolean(pagination?.hasMore);
   $('loadMoreProducts').classList.toggle('hidden', !state.productHasMore);
   $('products').classList.toggle('home-product-row', state.homeMode && !query);
+  $('products').classList.toggle('category-product-grid', !$('categoryBrowseBar').classList.contains('hidden'));
   $('products').innerHTML = state.products.length ? state.products.map((item) => `
     <article class="product">
       <div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
