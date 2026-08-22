@@ -3,6 +3,7 @@
 const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer: null, products: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+const shortReference = (value) => { const text = String(value || ''); return text.length > 18 ? `${text.slice(0, 11)}…${text.slice(-6)}` : text; };
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
 const productImages = (product) => (Array.isArray(product?.images) ? product.images : (product?.imageData ? [product.imageData] : [])).map(safeProductImage).filter(Boolean).slice(0, 3);
 
@@ -794,7 +795,7 @@ async function loadMySuggestions() {
       <div><strong>${escapeHtml(item.title || '기존 건의사항')}</strong><p class="meta">${escapeHtml(suggestionCategoryNames[item.category] || '건의사항')} · ${item.status === 'closed' ? '답변 완료' : '접수'}</p></div>
       <p>${escapeHtml(item.content)}</p>
       ${item.decision ? `<p class="admin-decision"><strong>관리자 답변</strong><br>${escapeHtml(item.decision.reason)}</p>` : '<p class="meta">관리자가 내용을 확인하고 있습니다.</p>'}
-      <p class="meta">접수번호 ${escapeHtml(item.id)} · ${escapeHtml(new Date(item.createdAt).toLocaleString())}</p>
+      <p class="meta qna-reference" title="${escapeHtml(item.id)}">접수번호 ${escapeHtml(shortReference(item.id))}<br>${escapeHtml(new Date(item.createdAt).toLocaleString())}</p>
     </article>`).join('') : '<p class="empty">접수한 문의가 없습니다.</p>';
   return items.length;
 }
