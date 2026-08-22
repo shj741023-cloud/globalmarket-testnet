@@ -119,6 +119,7 @@ async function changeAdminUserStatus(button) {
 
 const adminReportStatusNames = { received: '접수', reviewing: '검토 중', closed: '처리 완료' };
 const adminDecisionNames = { violation_confirmed: '위반 확인', no_violation: '위반 없음', insufficient_evidence: '증거 부족' };
+const suggestionCategoryNames = { general: '이용 문의', suggestion: '건의사항', payment: '결제', trade: '거래', report_dispute: '신고·분쟁' };
 
 function renderAdminReports(items) {
   $('adminReports').innerHTML = items.length ? items.map((report) => `
@@ -144,7 +145,7 @@ async function loadAdminReports() {
 function renderAdminSuggestions(items) {
   $('adminSuggestions').innerHTML = items.length ? items.map((item) => `
     <article class="management-card">
-      <div><strong>사용자 건의사항</strong><p class="meta">${escapeHtml(item.id)} · ${item.status === 'closed' ? '처리 완료' : '접수'}</p></div>
+      <div><strong>${escapeHtml(item.title || '기존 건의사항')}</strong><p class="meta">${escapeHtml(suggestionCategoryNames[item.category] || '건의사항')} · ${escapeHtml(item.id)} · ${item.status === 'closed' ? '답변 완료' : '접수'}</p></div>
       <p>${escapeHtml(item.content)}</p><p class="meta">접수 ${escapeHtml(new Date(item.createdAt).toLocaleString())}</p>
       ${item.decision ? `<p class="admin-decision"><strong>처리 내용</strong> · ${escapeHtml(item.decision.reason)}</p>` : ''}
       ${item.status !== 'closed' ? `<button class="primary" type="button" data-suggestion-close="${escapeHtml(item.id)}">처리 완료</button>` : ''}
@@ -473,7 +474,7 @@ async function loginPi() {
   const session = await api('/api/v1/auth/pi', { method: 'POST', body: JSON.stringify({ accessToken: auth.accessToken }) });
   state.sessionToken = session.sessionToken;
   applyAuthenticatedUser(session.user, '서버 검증 완료');
-  await loadMyMarket();
+  await Promise.all([loadMyMarket(), loadMySuggestions()]);
 }
 
 function applyAuthenticatedUser(user, message = '로그인 유지 중') {
@@ -489,7 +490,7 @@ async function restoreSession() {
   try {
     const { user } = await api('/api/v1/me');
     applyAuthenticatedUser(user);
-    await loadMyMarket();
+    await Promise.all([loadMyMarket(), loadMySuggestions()]);
   } catch {
     state.user = null;
     state.sessionToken = null;
@@ -765,7 +766,7 @@ async function health() {
   }
 }
 
-async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
+async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>'; ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
 
 async function submitSuggestion(event) {
   event.preventDefault();
@@ -774,11 +775,28 @@ async function submitSuggestion(event) {
     return;
   }
   try {
-    const { suggestion } = await api('/api/v1/suggestions', { method: 'POST', body: JSON.stringify({ content: $('suggestionContent').value.trim() }) });
+    const { suggestion } = await api('/api/v1/suggestions', { method: 'POST', body: JSON.stringify({ category: $('suggestionCategory').value, title: $('suggestionSubject').value.trim(), content: $('suggestionContent').value.trim() }) });
+    $('suggestionSubject').value = '';
     $('suggestionContent').value = '';
-    $('suggestionResult').textContent = `건의사항이 접수되었습니다. 접수번호 ${suggestion.id}`;
-    await loadNotifications();
+    $('suggestionResult').textContent = `문의가 접수되었습니다. 접수번호 ${suggestion.id}`;
+    await Promise.all([loadNotifications(), loadMySuggestions()]);
   } catch (error) { $('suggestionResult').textContent = error.message; }
+}
+
+async function loadMySuggestions() {
+  if (!state.user) {
+    $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>';
+    return 0;
+  }
+  const { items } = await api('/api/v1/me/suggestions');
+  $('mySuggestions').innerHTML = items.length ? items.map((item) => `
+    <article class="management-card">
+      <div><strong>${escapeHtml(item.title || '기존 건의사항')}</strong><p class="meta">${escapeHtml(suggestionCategoryNames[item.category] || '건의사항')} · ${item.status === 'closed' ? '답변 완료' : '접수'}</p></div>
+      <p>${escapeHtml(item.content)}</p>
+      ${item.decision ? `<p class="admin-decision"><strong>관리자 답변</strong><br>${escapeHtml(item.decision.reason)}</p>` : '<p class="meta">관리자가 내용을 확인하고 있습니다.</p>'}
+      <p class="meta">접수번호 ${escapeHtml(item.id)} · ${escapeHtml(new Date(item.createdAt).toLocaleString())}</p>
+    </article>`).join('') : '<p class="empty">접수한 문의가 없습니다.</p>';
+  return items.length;
 }
 
 $('piLogin').addEventListener('click', () => loginPi().catch((error) => alert(error.message)));
@@ -824,4 +842,5 @@ $('cancelProductEdit').addEventListener('click', closeProductEdit);
 $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch((error) => alert(error.message)));
 $('refreshChats').addEventListener('click', () => loadChats().catch((error) => alert(error.message)));
 $('suggestionForm').addEventListener('submit', submitSuggestion);
+$('refreshSuggestions').addEventListener('click', () => loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }));
 health(); loadProducts(); loadCategories(); restoreSession();

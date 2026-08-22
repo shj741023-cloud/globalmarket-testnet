@@ -171,13 +171,17 @@
     </section>
 
     <section id="suggestionPanel" class="panel" aria-labelledby="suggestionTitle">
-      <div class="section-title"><div><p class="eyebrow">YOUR VOICE</p><h2 id="suggestionTitle">건의사항</h2></div></div>
-      <p class="form-notice">Global Market을 더 편리하게 만들 아이디어나 개선 의견을 남겨주세요.</p>
+      <div class="section-title"><div><p class="eyebrow">Q&amp;A</p><h2 id="suggestionTitle">문의·건의</h2></div></div>
+      <p class="form-notice">문의나 개선 의견을 남기면 처리상태와 관리자 답변을 이곳에서 확인할 수 있습니다.</p>
       <form id="suggestionForm" class="product-form">
+        <label>문의 유형<select id="suggestionCategory" required><option value="general">이용 문의</option><option value="suggestion">건의사항</option><option value="payment">결제</option><option value="trade">거래</option><option value="report_dispute">신고·분쟁</option></select></label>
+        <label>제목<input id="suggestionSubject" minlength="2" maxlength="60" placeholder="문의 제목을 입력하세요." required></label>
         <label>내용<textarea id="suggestionContent" minlength="5" maxlength="500" rows="5" placeholder="건의 내용을 5자 이상 입력하세요." required></textarea></label>
-        <button class="primary" type="submit">건의사항 보내기</button>
+        <button class="primary" type="submit">문의 보내기</button>
       </form>
       <p id="suggestionResult" class="status" aria-live="polite"></p>
+      <div class="section-title"><div><p class="eyebrow">MY Q&amp;A</p><h2>내 문의 내역</h2></div><button id="refreshSuggestions" class="secondary" type="button">불러오기</button></div>
+      <div id="mySuggestions" class="management-list"><p class="empty">로그인 후 내 문의 내역을 확인할 수 있습니다.</p></div>
     </section>
   </main>
 
@@ -188,6 +192,6 @@
   </nav>
 
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-  <script src="/app.js?v=20260822-4"></script>
+  <script src="/app.js?v=20260822-5"></script>
 </body>
 </html>

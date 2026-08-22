@@ -475,11 +475,16 @@ async function handleApi(req, res, url) {
   if (method === 'POST' && pathname === '/api/v1/suggestions') {
     const userId = requireUserId(req, res); if (!userId) return;
     const body = await readJson(req);
-    const suggestion = createSuggestion({ id: store.id('suggestion'), userId, content: body.content });
+    const suggestion = createSuggestion({ id: store.id('suggestion'), userId, category: body.category, title: body.title, content: body.content });
     store.state.suggestions.push(suggestion);
     notify(userId, 'suggestion_received', '건의사항이 접수되었습니다', `접수번호 ${suggestion.id}`, suggestion.id);
     store.event('SUGGESTION_RECEIVED', suggestion.id); await store.save();
-    return sendJson(res, 201, { ok: true, suggestion: { id: suggestion.id, content: suggestion.content, status: suggestion.status, createdAt: suggestion.createdAt } });
+    return sendJson(res, 201, { ok: true, suggestion: { id: suggestion.id, category: suggestion.category, title: suggestion.title, content: suggestion.content, status: suggestion.status, createdAt: suggestion.createdAt } });
+  }
+  if (method === 'GET' && pathname === '/api/v1/me/suggestions') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const items = store.state.suggestions.filter((item) => item.userId === userId).slice().reverse().map(({ userId: _userId, ...item }) => item);
+    return sendJson(res, 200, { ok: true, items });
   }
   if (method === 'POST' && pathname === '/api/v1/products') {
     const sellerId = requireUserId(req, res); if (!sellerId) return;
