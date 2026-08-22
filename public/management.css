@@ -1,6 +1,12 @@
 .management-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; min-width: 0; }
 .management-tabs button { flex: 1 1 110px; min-width: 0; padding: 11px; border-radius: 10px; background: #edf2ef; color: #52645d; white-space: normal; word-break: keep-all; }
 .management-tabs button.active { background: #132a22; color: #fff; }
+.admin-alerts { display: grid; gap: 8px; margin: 14px 0; }
+.admin-alerts .empty { padding: 14px; }
+.admin-alert { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border: 1px solid #dfad45; border-radius: 14px; background: #fff0cf; color: #132a22; }
+.admin-alert strong, .admin-alert small { display: block; }
+.admin-alert small { margin-top: 3px; color: #6f6042; }
+.admin-alert button { flex: 0 0 auto; padding: 9px 12px; border-radius: 9px; background: #132a22; color: #fff; font-weight: 800; }
 .hidden { display: none !important; }
 .management-list { display: grid; gap: 10px; }
 .management-card { width: 100%; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid #d9ddd7; border-radius: 16px; background: #fffefa; text-align: left; color: #132a22; overflow: hidden; }
@@ -68,6 +74,8 @@
 .trust-summary small { color: #52645d; }
 @media (max-width: 520px) { .trust-summary { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px) {
+  .admin-alert { align-items: stretch; flex-direction: column; }
+  .admin-alert button { width: 100%; }
   .management-tabs button { flex-basis: calc(50% - 4px); }
   .management-card { align-items: stretch; flex-direction: column; gap: 12px; }
   .management-card > button, .card-actions button { width: 100%; white-space: normal; }

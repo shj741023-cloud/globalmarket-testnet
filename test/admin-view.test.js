@@ -10,7 +10,7 @@ const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 const app = fs.readFileSync(path.join(publicDir, 'app.js'), 'utf8');
 
 test('관리자 회원 화면에 잠금·검색·상태변경 요소가 연결된다', () => {
-  for (const id of ['openAdmin', 'adminPanel', 'adminUnlockForm', 'adminKey', 'adminSearchForm', 'adminDashboard', 'adminUsers', 'showAdminProducts', 'adminProducts', 'showAdminReports', 'adminReports', 'showAdminDisputes', 'adminDisputes', 'showAdminAudit', 'adminAudit']) {
+  for (const id of ['openAdmin', 'adminPanel', 'adminUnlockForm', 'adminKey', 'adminSearchForm', 'adminAlerts', 'adminDashboard', 'adminUsers', 'showAdminProducts', 'adminProducts', 'showAdminReports', 'adminReports', 'showAdminDisputes', 'adminDisputes', 'showAdminAudit', 'adminAudit']) {
     assert.match(html, new RegExp(`id="${id}"`));
     assert.match(app, new RegExp(`\\$\\('${id}'\\)`));
   }
