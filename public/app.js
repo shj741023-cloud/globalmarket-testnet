@@ -417,6 +417,8 @@ function showHome() {
   $('marketSection').classList.remove('hidden');
   $('searchForm').classList.add('hidden');
   $('categoryBrowseBar').classList.add('hidden');
+  $('marketEyebrow').textContent = 'TRENDING';
+  $('marketTitle').textContent = '인기 상품';
   loadProducts().catch((error) => alert(error.message));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -430,6 +432,8 @@ function showSearch() {
   $('marketSection').classList.remove('hidden');
   $('searchForm').classList.remove('hidden');
   $('categoryBrowseBar').classList.add('hidden');
+  $('marketEyebrow').textContent = '상품 찾기';
+  $('marketTitle').textContent = '상품 검색';
   $('marketSection').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -439,6 +443,8 @@ async function openCategory(categoryId) {
   $('searchCategory').value = categoryId;
   $('searchForm').classList.add('hidden');
   $('categoryBrowseBar').classList.remove('hidden');
+  $('marketEyebrow').textContent = '카테고리 상품';
+  $('marketTitle').textContent = '상품 목록';
   $('selectedCategoryName').textContent = state.categories.find((item) => item.id === categoryId)?.name || '카테고리 상품';
   await loadProducts(`categoryId=${encodeURIComponent(categoryId)}`);
 }
@@ -887,7 +893,6 @@ $('headerNotifications').addEventListener('click', () => {
 $('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); showFeaturePanel('registerPanel'); });
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('chatPanel'); loadChats().catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('myPanel'); loadMyMarket().catch((error) => alert(error.message)); });
-$('homeSearch').addEventListener('click', showSearch);
 $('homeRegister').addEventListener('click', () => $('navRegister').click());
 $('homeMy').addEventListener('click', () => $('navMy').click());
 $('homeQna').addEventListener('click', () => { showFeaturePanel('suggestionPanel'); loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }); });
