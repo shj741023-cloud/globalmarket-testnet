@@ -874,6 +874,13 @@ $('showMyFavorites').addEventListener('click', () => showManagement('favorites')
 $('showMyTrades').addEventListener('click', () => showManagement('trades'));
 $('navHome').addEventListener('click', showHome);
 $('navSearch').addEventListener('click', showSearch);
+$('headerHome').addEventListener('click', showHome);
+$('headerSearch').addEventListener('click', showSearch);
+$('headerNotifications').addEventListener('click', () => {
+  if (!state.user) return alert('Pi Testnet 로그인 후 알림을 확인할 수 있습니다.');
+  showFeaturePanel('myPanel');
+  loadMyMarket().then(() => $('notifications').scrollIntoView({ behavior: 'smooth', block: 'start' })).catch((error) => alert(error.message));
+});
 $('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); showFeaturePanel('registerPanel'); });
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('chatPanel'); loadChats().catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('myPanel'); loadMyMarket().catch((error) => alert(error.message)); });
