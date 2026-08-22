@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer: null, homeMode: true, products: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
+const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer: null, homeMode: true, products: [], popularProducts: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const shortReference = (value) => { const text = String(value || ''); return text.length > 18 ? `${text.slice(0, 11)}…${text.slice(-6)}` : text; };
@@ -274,6 +274,26 @@ async function loadAdminProducts() {
   return items.length;
 }
 
+async function loadAdminPopularProducts() {
+  const { items } = await adminApi('/api/v1/admin/popular-products');
+  $('adminPopular').innerHTML = items.length ? items.map((item) => `
+    <article class="management-card">
+      <div><small>${item.selected ? '인기 상품 노출 중' : '일반 상품'}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div>
+      <button class="${item.selected ? 'secondary danger-text' : 'primary'}" data-popular-admin="${escapeHtml(item.id)}" data-popular-selected="${item.selected ? 'false' : 'true'}">${item.selected ? '선정 해제' : '인기 상품 선정'}</button>
+    </article>`).join('') : '<p class="empty">선정 가능한 판매 중 상품이 없습니다.</p>';
+  $('adminPopular').querySelectorAll('[data-popular-admin]').forEach((button) => button.addEventListener('click', async () => {
+    const selected = button.dataset.popularSelected === 'true';
+    const reason = prompt(selected ? '인기 상품 선정 사유를 입력하세요.' : '인기 상품 선정 해제 사유를 입력하세요.');
+    if (!reason?.trim() || !confirm(selected ? '이 상품을 인기 상품 영역에 표시할까요?' : '이 상품을 인기 상품 영역에서 내릴까요?')) return;
+    try {
+      await adminApi(`/api/v1/admin/popular-products/${encodeURIComponent(button.dataset.popularAdmin)}`, { method: 'POST', body: JSON.stringify({ selected, reason: reason.trim() }) });
+      $('adminResult').textContent = selected ? '인기 상품으로 선정했습니다.' : '인기 상품 선정을 해제했습니다.';
+      await Promise.all([loadAdminPopularProducts(), loadAdminAudit(), loadPopularProducts()]);
+    } catch (error) { $('adminResult').textContent = error.message; }
+  }));
+  return items.length;
+}
+
 async function decideAdminProduct(button) {
   const decision = button.dataset.productDecision;
   const action = decision === 'approve' ? '판매 승인' : '등록 거절';
@@ -330,12 +350,14 @@ function stopAdminAlertPolling() {
 function showAdminSection(name) {
   const users = name === 'users';
   const products = name === 'products';
+  const popular = name === 'popular';
   const reports = name === 'reports';
   const disputes = name === 'disputes';
   const suggestions = name === 'suggestions';
   const gasDebts = name === 'gasDebts';
   $('adminUsers').classList.toggle('hidden', !users);
   $('adminProducts').classList.toggle('hidden', !products);
+  $('adminPopular').classList.toggle('hidden', !popular);
   $('adminReports').classList.toggle('hidden', !reports);
   $('adminDisputes').classList.toggle('hidden', !disputes);
   $('adminSuggestions').classList.toggle('hidden', !suggestions);
@@ -345,6 +367,7 @@ function showAdminSection(name) {
   $('adminSearchForm').classList.toggle('hidden', !users);
   $('showAdminUsers').classList.toggle('active', users);
   $('showAdminProducts').classList.toggle('active', products);
+  $('showAdminPopular').classList.toggle('active', popular);
   $('showAdminReports').classList.toggle('active', reports);
   $('showAdminDisputes').classList.toggle('active', disputes);
   $('showAdminSuggestions').classList.toggle('active', suggestions);
@@ -393,6 +416,20 @@ async function loadProducts(query = '', append = false) {
   document.querySelectorAll('[data-product]').forEach((button) => button.addEventListener('click', () => openProductDetail(button.dataset.product)));
 }
 
+async function loadPopularProducts() {
+  const { items } = await api('/api/v1/popular-products');
+  state.popularProducts = items;
+  $('popularProductsEmpty').classList.toggle('hidden', items.length > 0);
+  $('popularProducts').classList.toggle('hidden', items.length === 0);
+  $('popularProducts').innerHTML = items.map((item) => `
+    <article class="product">
+      <div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
+      <h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p>
+      <button data-popular-product="${escapeHtml(item.id)}">상세 보기</button>
+    </article>`).join('');
+  $('popularProducts').querySelectorAll('[data-popular-product]').forEach((button) => button.addEventListener('click', () => openProductDetail(button.dataset.popularProduct)));
+}
+
 async function loadCategories() {
   const { items } = await api('/api/v1/categories');
   state.categories = items;
@@ -420,7 +457,7 @@ function showHome() {
   $('marketEyebrow').textContent = 'NEW';
   $('marketTitle').textContent = '최근 등록 상품';
   $('popularProductsSection').classList.remove('hidden');
-  loadProducts().catch((error) => alert(error.message));
+  Promise.all([loadProducts(), loadPopularProducts()]).catch((error) => alert(error.message));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -463,7 +500,7 @@ function showFeaturePanel(panelId) {
 }
 
 async function openProductDetail(productId) {
-  const product = state.products.find((item) => item.id === productId);
+  const product = state.products.find((item) => item.id === productId) || state.popularProducts.find((item) => item.id === productId);
   if (!product) return;
   state.selectedProduct = product;
   const images = productImages(product);
@@ -901,12 +938,13 @@ $('homeQna').addEventListener('click', () => { showFeaturePanel('suggestionPanel
 $('categoryFilters').addEventListener('click', () => { $('searchForm').classList.toggle('hidden'); if (!$('searchForm').classList.contains('hidden')) $('searchForm').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 $('categoryHome').addEventListener('click', showHome);
 $('openAdmin').addEventListener('click', () => showFeaturePanel('adminPanel'));
-$('closeAdmin').addEventListener('click', () => { stopAdminAlertPolling(); state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminProducts').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminSuggestions').innerHTML = ''; $('adminGasDebts').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminAlerts').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
+$('closeAdmin').addEventListener('click', () => { stopAdminAlertPolling(); state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminProducts').innerHTML = ''; $('adminPopular').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminSuggestions').innerHTML = ''; $('adminGasDebts').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminAlerts').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
 $('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { const [, reportCount] = await Promise.all([loadAdminUsers(), loadAdminReports()]); $('adminUnlockForm').classList.add('hidden'); $('adminWorkspace').classList.remove('hidden'); showAdminSection('users'); $('adminKey').value = ''; await loadAdminDashboard(); startAdminAlertPolling(); $('adminResult').textContent = `관리자 확인 완료 · 접수된 신고 ${reportCount}건`; } catch (error) { stopAdminAlertPolling(); state.adminKey = null; $('adminResult').textContent = error.message; } });
 $('adminSearchForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await loadAdminUsers(); } catch (error) { $('adminResult').textContent = error.message; } });
 $('clearAdminSearch').addEventListener('click', () => { $('adminUserQuery').value = ''; $('adminUserStatus').value = ''; loadAdminUsers().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminUsers').addEventListener('click', () => showAdminSection('users'));
 $('showAdminProducts').addEventListener('click', () => { showAdminSection('products'); loadAdminProducts().then((count) => { $('adminResult').textContent = `상품 검토 대기 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
+$('showAdminPopular').addEventListener('click', () => { showAdminSection('popular'); loadAdminPopularProducts().then((count) => { $('adminResult').textContent = `선정 가능한 판매 중 상품 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminReports').addEventListener('click', () => { showAdminSection('reports'); loadAdminReports().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminDisputes').addEventListener('click', () => { showAdminSection('disputes'); loadAdminDisputes().then((count) => { $('adminResult').textContent = `택배 안전거래 분쟁 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminSuggestions').addEventListener('click', () => { showAdminSection('suggestions'); loadAdminSuggestions().then((count) => { $('adminResult').textContent = `접수된 건의사항 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
@@ -922,4 +960,4 @@ $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch(
 $('refreshChats').addEventListener('click', () => loadChats().catch((error) => alert(error.message)));
 $('suggestionForm').addEventListener('submit', submitSuggestion);
 $('refreshSuggestions').addEventListener('click', () => loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }));
-health(); loadProducts(); loadCategories(); restoreSession();
+health(); loadProducts(); loadPopularProducts(); loadCategories(); restoreSession();

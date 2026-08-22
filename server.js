@@ -57,6 +57,7 @@ const { createCompensation, confirmCompensation, appealCompensation } = require(
 const { createMockPayoutBatch } = require('./lib/compensation-payouts');
 const { offsetDebts } = require('./lib/debt-offset');
 const { assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt, decideGasDebtAppeal } = require('./lib/trading-restrictions');
+const { listPopularProducts, setPopularProduct } = require('./lib/popular-products');
 
 assertTestnetEnvironment();
 
@@ -323,6 +324,10 @@ async function handleApi(req, res, url) {
     const allItems = searchProducts(store.state.products, query).map((product) => ({ ...publicProduct(store.state, product), isFavorite: favoriteIds.has(product.id) }));
     const page = paginate(allItems, query);
     return sendJson(res, 200, { ok: true, items: page.items, pagination: { total: page.total, limit: page.limit, offset: page.offset, hasMore: page.hasMore }, filters: query });
+  }
+  if (method === 'GET' && pathname === '/api/v1/popular-products') {
+    const items = listPopularProducts(store.state.products).slice(0, 12).map((product) => publicProduct(store.state, product));
+    return sendJson(res, 200, { ok: true, items });
   }
   if (method === 'GET' && pathname === '/api/v1/categories') {
     return sendJson(res, 200, { ok: true, items: CATEGORIES });
@@ -1004,6 +1009,25 @@ async function handleApi(req, res, url) {
   if (method === 'GET' && pathname === '/api/v1/admin/product-reviews') {
     if (!requireTestAdmin(req, res)) return;
     return sendJson(res, 200, { ok: true, items: moderationQueue(store.state) });
+  }
+  if (method === 'GET' && pathname === '/api/v1/admin/popular-products') {
+    if (!requireTestAdmin(req, res)) return;
+    const items = store.state.products.filter((item) => ['available', 'reserved'].includes(item.status)).slice().reverse().map((item) => ({
+      id: item.id, title: item.title, price: item.price, region: item.region, images: (item.images || []).slice(0, 1), selected: Boolean(item.popularPlacement?.selectedAt)
+    }));
+    return sendJson(res, 200, { ok: true, items });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/popular-products\/([^/]+)$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
+    const body = await readJson(req); const before = structuredClone(product);
+    const result = setPopularProduct(product, body.selected, testAdminId(req), body.reason);
+    if (!result.idempotent) {
+      recordAudit(req, body.selected ? 'POPULAR_PRODUCT_SELECTED' : 'POPULAR_PRODUCT_REMOVED', 'product', product.id, body.reason, before, product);
+      await store.save();
+    }
+    return sendJson(res, 200, { ok: true, product: { id: product.id, selected: Boolean(product.popularPlacement?.selectedAt) }, idempotent: result.idempotent });
   }
   if (method === 'GET' && pathname === '/api/v1/admin/dashboard') {
     if (!requireTestAdmin(req, res)) return;
