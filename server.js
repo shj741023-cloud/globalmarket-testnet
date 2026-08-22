@@ -49,6 +49,7 @@ const { adminAuditSummaries } = require('./lib/admin-audit');
 const { adminDisputeSummary, adminRefundSummary, adminDisputeSummaries } = require('./lib/admin-disputes');
 const { moderationQueue, moderateProduct } = require('./lib/product-moderation');
 const { adminDashboardSummary } = require('./lib/admin-dashboard');
+const { createSuggestion, closeSuggestion } = require('./lib/suggestions');
 const { adminKeyMatches, requestIdentity } = require('./lib/admin-auth');
 const { adminReportSummary, adminReportSummaries } = require('./lib/admin-reports');
 const { securityHeaders } = require('./lib/security-headers');
@@ -470,6 +471,15 @@ async function handleApi(req, res, url) {
     notify(reporterId, 'report_received', '신고가 접수되었습니다', `접수번호 ${report.id}`, report.id);
     store.event('REPORT_RECEIVED', report.id); await store.save();
     return sendJson(res, 201, { ok: true, report });
+  }
+  if (method === 'POST' && pathname === '/api/v1/suggestions') {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const body = await readJson(req);
+    const suggestion = createSuggestion({ id: store.id('suggestion'), userId, content: body.content });
+    store.state.suggestions.push(suggestion);
+    notify(userId, 'suggestion_received', '건의사항이 접수되었습니다', `접수번호 ${suggestion.id}`, suggestion.id);
+    store.event('SUGGESTION_RECEIVED', suggestion.id); await store.save();
+    return sendJson(res, 201, { ok: true, suggestion: { id: suggestion.id, content: suggestion.content, status: suggestion.status, createdAt: suggestion.createdAt } });
   }
   if (method === 'POST' && pathname === '/api/v1/products') {
     const sellerId = requireUserId(req, res); if (!sellerId) return;
@@ -1009,6 +1019,25 @@ async function handleApi(req, res, url) {
     if (!requireTestAdmin(req, res)) return;
     const query = Object.fromEntries(url.searchParams.entries());
     return sendJson(res, 200, { ok: true, items: adminReportSummaries(store.state, query), filters: query });
+  }
+  if (method === 'GET' && pathname === '/api/v1/admin/suggestions') {
+    if (!requireTestAdmin(req, res)) return;
+    const items = store.state.suggestions.slice().reverse().map(({ userId, ...item }) => ({ ...item, user: userId }));
+    return sendJson(res, 200, { ok: true, items });
+  }
+  match = pathname.match(/^\/api\/v1\/admin\/suggestions\/([^/]+)\/close$/);
+  if (method === 'POST' && match) {
+    if (!requireTestAdmin(req, res)) return;
+    const suggestion = store.state.suggestions.find((item) => item.id === match[1]); if (!findOr404(res, suggestion, 'suggestion')) return;
+    const body = await readJson(req); const before = structuredClone(suggestion);
+    const result = closeSuggestion(suggestion, body.reason);
+    if (!result.idempotent) {
+      recordAudit(req, 'SUGGESTION_CLOSED', 'suggestion', suggestion.id, body.reason, before, suggestion);
+      notify(suggestion.userId, 'suggestion_closed', '건의사항 처리결과가 등록되었습니다', body.reason, suggestion.id);
+      store.event('SUGGESTION_CLOSED', suggestion.id);
+      await store.save();
+    }
+    return sendJson(res, 200, { ok: true, suggestion: { id: suggestion.id, status: suggestion.status, decision: suggestion.decision }, idempotent: result.idempotent });
   }
   match = pathname.match(/^\/api\/v1\/admin\/reports\/([^/]+)\/assign$/);
   if (method === 'POST' && match) {
