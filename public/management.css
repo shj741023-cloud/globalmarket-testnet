@@ -1,9 +1,10 @@
 .management-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; min-width: 0; }
 .topbar-brand { padding: 0; background: transparent; color: #132a22; font-size: 21px; font-weight: 900; letter-spacing: -.03em; }
 .topbar-actions { display: flex; align-items: center; gap: 6px; }
-.topbar-actions button { display: grid; place-items: center; width: 42px; height: 42px; padding: 8px; border-radius: 50%; background: transparent; color: #132a22; }
+.topbar-actions button { position: relative; display: grid; place-items: center; width: 42px; height: 42px; padding: 8px; border-radius: 50%; background: transparent; color: #132a22; }
 .topbar-actions button:active { background: #e7ece8; }
 .topbar-actions svg { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.notification-badge { position: absolute; top: 2px; right: 0; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border: 2px solid #f4f2e9; border-radius: 999px; background: #58bd68; color: #fff; font-size: 10px; font-weight: 900; line-height: 1; }
 .management-tabs button { flex: 1 1 110px; min-width: 0; padding: 11px; border-radius: 10px; background: #edf2ef; color: #52645d; white-space: normal; word-break: keep-all; }
 .management-tabs button.active { background: #132a22; color: #fff; }
 .admin-alerts { display: grid; gap: 8px; margin: 14px 0; }

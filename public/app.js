@@ -703,6 +703,9 @@ function notificationView(item) {
 
 async function loadNotifications() {
   const { items } = await api('/api/v1/notifications');
+  const unreadCount = items.filter((item) => !item.readAt).length;
+  $('notificationBadge').textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+  $('notificationBadge').classList.toggle('hidden', unreadCount === 0);
   $('notifications').innerHTML = items.length ? items.slice(0, 20).map(notificationView).map((item) => `<button class="management-card ${item.readAt ? '' : 'unread'}" data-notification="${escapeHtml(item.id)}"><div><small>${escapeHtml(item.statusLabel || (item.readAt ? '읽음' : '새 알림'))}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p></div></button>`).join('') : '<p class="empty">새로운 알림이 없습니다.</p>';
   document.querySelectorAll('[data-notification]').forEach((button) => button.addEventListener('click', async () => { try { await api(`/api/v1/notifications/${button.dataset.notification}/read`, { method: 'POST' }); await loadNotifications(); } catch (error) { alert(error.message); } }));
 }
@@ -822,7 +825,7 @@ async function health() {
   }
 }
 
-async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>'; ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
+async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); $('notificationBadge').classList.add('hidden'); $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>'; ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
 
 async function submitSuggestion(event) {
   event.preventDefault();
