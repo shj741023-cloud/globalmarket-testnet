@@ -167,7 +167,17 @@ function renderAdminAnnouncements(items) {
 }
 
 async function loadAdminAnnouncements() { const { items } = await adminApi('/api/v1/admin/announcements'); renderAdminAnnouncements(items); return items.filter((item) => item.status === 'active').length; }
-async function createAdminAnnouncement() { const title = prompt('모든 고객에게 표시할 운영 공지 제목을 입력하세요.'); if (!title?.trim()) return; const body = prompt('이용 주의사항 또는 편의사항을 입력하세요.'); if (!body?.trim() || !confirm('이 내용을 모든 고객의 상단 알림종에 게시할까요?')) return; try { await adminApi('/api/v1/admin/announcements', { method: 'POST', body: JSON.stringify({ title: title.trim(), body: body.trim() }) }); $('adminResult').textContent = '관리팀 운영 공지를 게시했습니다.'; await loadAdminAnnouncements(); } catch (error) { $('adminResult').textContent = error.message; } }
+async function createAdminAnnouncement() {
+  const title = prompt('모든 고객에게 표시할 운영 공지 제목을 입력하세요.');
+  if (!title?.trim()) return;
+  const body = prompt('이용 주의사항 또는 편의사항을 입력하세요.');
+  if (!body?.trim() || !confirm('이 내용을 모든 고객의 상단 알림종에 게시할까요?')) return;
+  try {
+    await adminApi('/api/v1/admin/announcements', { method: 'POST', body: JSON.stringify({ title: title.trim(), body: body.trim() }) });
+    $('adminResult').textContent = '관리팀 운영 공지를 게시했습니다. 모든 고객의 알림종에 새 공지 숫자가 표시됩니다.';
+    await Promise.all([loadAdminAnnouncements(), ...(state.user ? [loadAnnouncements()] : [])]);
+  } catch (error) { $('adminResult').textContent = error.message; }
+}
 async function archiveAdminAnnouncement(id) { const reason = prompt('공지 종료 사유를 입력하세요.'); if (!reason?.trim()) return; try { await adminApi(`/api/v1/admin/announcements/${encodeURIComponent(id)}/archive`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); $('adminResult').textContent = '운영 공지 게시를 종료했습니다.'; await loadAdminAnnouncements(); } catch (error) { $('adminResult').textContent = error.message; } }
 
 async function closeAdminSuggestion(id) {
