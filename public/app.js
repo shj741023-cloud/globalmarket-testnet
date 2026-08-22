@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer: null, products: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
+const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer: null, homeMode: true, products: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const shortReference = (value) => { const text = String(value || ''); return text.length > 18 ? `${text.slice(0, 11)}…${text.slice(-6)}` : text; };
@@ -372,13 +372,14 @@ function renderQuote(quote) {
 
 async function loadProducts(query = '', append = false) {
   const params = new URLSearchParams(query);
-  params.set('limit', '20');
+  params.set('limit', state.homeMode && !query ? '8' : '20');
   params.set('offset', append ? String(state.products.length) : '0');
   const { items, pagination } = await api(`/api/v1/products?${params.toString()}`);
   state.productQuery = query;
   state.products = append ? [...state.products, ...items] : items;
   state.productHasMore = Boolean(pagination?.hasMore);
   $('loadMoreProducts').classList.toggle('hidden', !state.productHasMore);
+  $('products').classList.toggle('home-product-row', state.homeMode && !query);
   $('products').innerHTML = state.products.length ? state.products.map((item) => `
     <article class="product">
       <div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
@@ -397,6 +398,54 @@ async function loadCategories() {
   $('productCategory').innerHTML = '<option value="">카테고리 선택</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
   $('editProductCategory').innerHTML = '<option value="">카테고리 선택</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
   $('searchCategory').innerHTML = '<option value="">전체 카테고리</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
+  const icons = { digital_devices: '📱', home_appliances: '🔌', furniture: '🪑', fashion: '👕', sports: '⚽', hobby: '🎨', books: '📚', baby: '🧸', vehicle_goods: '🚗', other_physical: '📦' };
+  $('categoryGrid').innerHTML = items.map((item) => `<button type="button" data-home-category="${escapeHtml(item.id)}"><span>${icons[item.id] || '📦'}</span><small>${escapeHtml(item.name)}</small></button>`).join('');
+  $('categoryGrid').querySelectorAll('[data-home-category]').forEach((button) => button.addEventListener('click', () => openCategory(button.dataset.homeCategory)));
+}
+
+function hideMainPanels() {
+  ['productDetailPanel', 'myPanel', 'registerPanel', 'editProductPanel', 'chatPanel', 'tradePanel', 'adminPanel', 'suggestionPanel'].forEach((id) => $(id).classList.add('hidden'));
+}
+
+function showHome() {
+  hideMainPanels();
+  state.homeMode = true;
+  $('homeNotice').classList.remove('hidden');
+  $('homeHero').classList.remove('hidden');
+  $('homeCategories').classList.remove('hidden');
+  $('marketSection').classList.remove('hidden');
+  $('searchForm').classList.add('hidden');
+  loadProducts().catch((error) => alert(error.message));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showSearch() {
+  hideMainPanels();
+  state.homeMode = false;
+  $('homeNotice').classList.add('hidden');
+  $('homeHero').classList.add('hidden');
+  $('homeCategories').classList.add('hidden');
+  $('marketSection').classList.remove('hidden');
+  $('searchForm').classList.remove('hidden');
+  $('marketSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function openCategory(categoryId) {
+  showSearch();
+  $('searchForm').reset();
+  $('searchCategory').value = categoryId;
+  await loadProducts(`categoryId=${encodeURIComponent(categoryId)}`);
+}
+
+function showFeaturePanel(panelId) {
+  hideMainPanels();
+  state.homeMode = false;
+  $('homeNotice').classList.add('hidden');
+  $('homeHero').classList.add('hidden');
+  $('homeCategories').classList.add('hidden');
+  $('marketSection').classList.add('hidden');
+  $(panelId).classList.remove('hidden');
+  $(panelId).scrollIntoView({ behavior: 'smooth' });
 }
 
 async function openProductDetail(productId) {
@@ -817,12 +866,16 @@ $('refreshMy').addEventListener('click', () => loadMyMarket().catch((error) => a
 $('showMyProducts').addEventListener('click', () => showManagement('products'));
 $('showMyFavorites').addEventListener('click', () => showManagement('favorites'));
 $('showMyTrades').addEventListener('click', () => showManagement('trades'));
-$('navHome').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-$('navSearch').addEventListener('click', () => $('products').scrollIntoView({ behavior: 'smooth' }));
-$('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); $('registerPanel').classList.remove('hidden'); $('registerPanel').scrollIntoView({ behavior: 'smooth' }); });
-$('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('chatPanel').classList.remove('hidden'); loadChats().then(() => $('chatPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
-$('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('myPanel').classList.remove('hidden'); loadMyMarket().then(() => $('myPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
-$('openAdmin').addEventListener('click', () => { $('adminPanel').classList.remove('hidden'); $('adminPanel').scrollIntoView({ behavior: 'smooth' }); });
+$('navHome').addEventListener('click', showHome);
+$('navSearch').addEventListener('click', showSearch);
+$('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); showFeaturePanel('registerPanel'); });
+$('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('chatPanel'); loadChats().catch((error) => alert(error.message)); });
+$('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('myPanel'); loadMyMarket().catch((error) => alert(error.message)); });
+$('homeSearch').addEventListener('click', showSearch);
+$('homeRegister').addEventListener('click', () => $('navRegister').click());
+$('homeMy').addEventListener('click', () => $('navMy').click());
+$('homeQna').addEventListener('click', () => { showFeaturePanel('suggestionPanel'); loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }); });
+$('openAdmin').addEventListener('click', () => showFeaturePanel('adminPanel'));
 $('closeAdmin').addEventListener('click', () => { stopAdminAlertPolling(); state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminProducts').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminSuggestions').innerHTML = ''; $('adminGasDebts').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminAlerts').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
 $('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { const [, reportCount] = await Promise.all([loadAdminUsers(), loadAdminReports()]); $('adminUnlockForm').classList.add('hidden'); $('adminWorkspace').classList.remove('hidden'); showAdminSection('users'); $('adminKey').value = ''; await loadAdminDashboard(); startAdminAlertPolling(); $('adminResult').textContent = `관리자 확인 완료 · 접수된 신고 ${reportCount}건`; } catch (error) { stopAdminAlertPolling(); state.adminKey = null; $('adminResult').textContent = error.message; } });
 $('adminSearchForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await loadAdminUsers(); } catch (error) { $('adminResult').textContent = error.message; } });
