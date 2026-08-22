@@ -417,8 +417,8 @@ function showHome() {
   $('marketSection').classList.remove('hidden');
   $('searchForm').classList.add('hidden');
   $('categoryBrowseBar').classList.add('hidden');
-  $('marketEyebrow').textContent = 'TRENDING';
-  $('marketTitle').textContent = '인기 상품';
+  $('marketEyebrow').textContent = 'NEW';
+  $('marketTitle').textContent = '최근 등록 상품';
   loadProducts().catch((error) => alert(error.message));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
