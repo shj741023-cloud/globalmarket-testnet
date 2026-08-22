@@ -296,13 +296,15 @@ async function loadAdminPopularProducts() {
 
 async function loadAdminPromotions() {
   const { items, products } = await adminApi('/api/v1/admin/promotion-campaigns');
-  $('adminPromotions').innerHTML = `<button id="createPromotion" class="primary" type="button">광고·협찬 계약 등록</button>` + (items.length ? items.map((item) => `<article class="management-card"><div><small>${item.type === 'sponsorship' ? '협찬' : '광고'} · ${escapeHtml(item.status)}</small><h3>${escapeHtml(item.sponsorName)}</h3><p>${escapeHtml(products.find((product) => product.id === item.productId)?.title || item.productId)} · ${escapeHtml(new Date(item.startAt).toLocaleDateString())}~${escapeHtml(new Date(item.endAt).toLocaleDateString())}</p></div></article>`).join('') : '<p class="empty">등록된 광고·협찬 계약이 없습니다.</p>');
+  const placementNames = { home_banner:'홈 배너', home_featured:'홈 추천 영역', search_top:'검색 상단' };
+  $('adminPromotions').innerHTML = `<button id="createPromotion" class="primary" type="button">광고·협찬 계약 등록</button>` + (items.length ? items.map((item) => `<article class="management-card"><div><small>${item.type === 'sponsorship' ? '협찬' : '광고'} · ${escapeHtml(item.status)} · ${escapeHtml(placementNames[item.placement] || '홈 추천 영역')}</small><h3>${escapeHtml(item.sponsorName)}</h3><p>${escapeHtml(products.find((product) => product.id === item.productId)?.title || item.productId)} · ${escapeHtml(new Date(item.startAt).toLocaleDateString())}~${escapeHtml(new Date(item.endAt).toLocaleDateString())}</p></div>${item.status !== 'ended' ? `<button data-promotion-end="${escapeHtml(item.id)}">계약 종료</button>` : ''}</article>`).join('') : '<p class="empty">등록된 광고·협찬 계약이 없습니다.</p>');
   $('createPromotion').addEventListener('click', async () => {
     const productId = prompt(`대상 상품 번호\n${products.map((item) => `${item.id}: ${item.title}`).join('\n')}`); if (!products.some((item) => item.id === productId)) return;
     const sponsorName = prompt('광고주 또는 협찬사 이름'); if (!sponsorName?.trim()) return;
-    const type = confirm('협찬이면 확인, 광고이면 취소') ? 'sponsorship' : 'advertising'; const startAt = prompt('시작일: 2026-09-01'); const endAt = prompt('종료일: 2026-09-30'); const note = prompt('계약 메모');
-    try { await adminApi('/api/v1/admin/promotion-campaigns', { method:'POST', body:JSON.stringify({ productId, sponsorName, type, startAt, endAt, note }) }); await Promise.all([loadAdminPromotions(), loadAdminAudit()]); } catch(error) { $('adminResult').textContent=error.message; }
+    const type = confirm('협찬이면 확인, 광고이면 취소') ? 'sponsorship' : 'advertising'; const placement = prompt('노출 위치: home_banner / home_featured / search_top', 'home_featured'); const startAt = prompt('시작일: 2026-09-01'); const endAt = prompt('종료일: 2026-09-30'); const note = prompt('계약 메모');
+    try { await adminApi('/api/v1/admin/promotion-campaigns', { method:'POST', body:JSON.stringify({ productId, sponsorName, type, placement, startAt, endAt, note }) }); await Promise.all([loadAdminPromotions(), loadAdminAudit()]); } catch(error) { $('adminResult').textContent=error.message; }
   });
+  $('adminPromotions').querySelectorAll('[data-promotion-end]').forEach((button) => button.addEventListener('click', async () => { const reason=prompt('계약 종료 사유'); if(!reason?.trim() || !confirm('이 계약을 종료할까요?')) return; try { await adminApi(`/api/v1/admin/promotion-campaigns/${encodeURIComponent(button.dataset.promotionEnd)}/end`, { method:'POST', body:JSON.stringify({reason:reason.trim()}) }); await Promise.all([loadAdminPromotions(),loadAdminAudit()]); } catch(error) { $('adminResult').textContent=error.message; } }));
   return items.length;
 }
 
