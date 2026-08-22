@@ -24,10 +24,10 @@
 .product-form input, .product-form textarea, .product-form select { width: 100%; padding: 12px; border: 1px solid #d9ddd7; border-radius: 10px; background: #fff; font: inherit; }
 .product-form textarea { min-height: 120px; resize: vertical; }
 .product-form small { color: #64736d; font-weight: 400; }
-.qna-list-title { align-items: center; gap: 12px; }
+.qna-list-title { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 12px; }
 .qna-list-title > div { min-width: 0; }
-.qna-list-title h2 { word-break: keep-all; }
-.qna-list-title button { flex: 0 0 auto; white-space: nowrap; }
+.qna-list-title h2 { word-break: keep-all; white-space: nowrap; }
+.qna-list-title button { width: 100%; white-space: nowrap; }
 .qna-reference { font-size: 12px; line-height: 1.6; }
 .product .image img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .product-detail-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 22px; }
