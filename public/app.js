@@ -278,16 +278,16 @@ async function loadAdminPopularProducts() {
   const { items } = await adminApi('/api/v1/admin/popular-products');
   $('adminPopular').innerHTML = items.length ? items.map((item) => `
     <article class="management-card">
-      <div><small>${item.selected ? '인기 상품 노출 중' : '일반 상품'}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div>
-      <button class="${item.selected ? 'secondary danger-text' : 'primary'}" data-popular-admin="${escapeHtml(item.id)}" data-popular-selected="${item.selected ? 'false' : 'true'}">${item.selected ? '선정 해제' : '인기 상품 선정'}</button>
+      <div><small>${item.selected ? '추천 상품 노출 중' : '일반 상품'}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div>
+      <button class="${item.selected ? 'secondary danger-text' : 'primary'}" data-popular-admin="${escapeHtml(item.id)}" data-popular-selected="${item.selected ? 'false' : 'true'}">${item.selected ? '선정 해제' : '추천 상품 선정'}</button>
     </article>`).join('') : '<p class="empty">선정 가능한 판매 중 상품이 없습니다.</p>';
   $('adminPopular').querySelectorAll('[data-popular-admin]').forEach((button) => button.addEventListener('click', async () => {
     const selected = button.dataset.popularSelected === 'true';
-    const reason = prompt(selected ? '인기 상품 선정 사유를 입력하세요.' : '인기 상품 선정 해제 사유를 입력하세요.');
-    if (!reason?.trim() || !confirm(selected ? '이 상품을 인기 상품 영역에 표시할까요?' : '이 상품을 인기 상품 영역에서 내릴까요?')) return;
+    const reason = prompt(selected ? '추천 상품 선정 사유를 입력하세요.' : '추천 상품 선정 해제 사유를 입력하세요.');
+    if (!reason?.trim() || !confirm(selected ? '이 상품을 추천 상품 영역에 표시할까요?' : '이 상품을 추천 상품 영역에서 내릴까요?')) return;
     try {
       await adminApi(`/api/v1/admin/popular-products/${encodeURIComponent(button.dataset.popularAdmin)}`, { method: 'POST', body: JSON.stringify({ selected, reason: reason.trim() }) });
-      $('adminResult').textContent = selected ? '인기 상품으로 선정했습니다.' : '인기 상품 선정을 해제했습니다.';
+      $('adminResult').textContent = selected ? '추천 상품으로 선정했습니다.' : '추천 상품 선정을 해제했습니다.';
       await Promise.all([loadAdminPopularProducts(), loadAdminAudit(), loadPopularProducts()]);
     } catch (error) { $('adminResult').textContent = error.message; }
   }));
