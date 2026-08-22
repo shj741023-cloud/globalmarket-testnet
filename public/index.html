@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/styles.css?v=20260822-5">
   <link rel="stylesheet" href="/payment.css?v=20260820-3">
   <link rel="stylesheet" href="/policy.css">
-  <link rel="stylesheet" href="/management.css?v=20260822-3">
+  <link rel="stylesheet" href="/management.css?v=20260822-4">
 </head>
 <body>
   <header class="topbar">
@@ -50,7 +50,11 @@
         <div><p class="eyebrow">테스트 상품</p><h2>시험 상품</h2></div>
         <span id="health" class="health">서버 확인 중</span>
       </div>
-      <div id="categoryBrowseBar" class="category-browse-bar hidden"><div><small>선택한 카테고리</small><strong id="selectedCategoryName">전체 상품</strong></div><button id="categoryFilters" class="secondary" type="button">필터</button><button id="categoryHome" class="secondary" type="button">카테고리</button></div>
+      <div id="categoryBrowseBar" class="category-browse-bar hidden">
+        <div class="category-browse-title"><small>선택한 카테고리</small><strong id="selectedCategoryName">전체 상품</strong></div>
+        <button id="categoryFilters" class="secondary" type="button">필터</button>
+        <button id="categoryHome" class="secondary" type="button">카테고리</button>
+      </div>
       <form id="searchForm" class="search-form hidden">
         <input id="searchKeyword" placeholder="상품명 또는 설명 검색">
         <select id="searchCategory"><option value="">전체 카테고리</option></select>
