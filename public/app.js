@@ -617,6 +617,13 @@ async function openProductDetail(productId, addHistory = true) {
   $('productDetailMeta').textContent = `${product.region} · Testnet 기능시험 상품`;
   $('productDetailSeller').innerHTML = `<small>판매자</small><strong>${escapeHtml(product.seller?.username || 'Pi 사용자')}</strong><span>${escapeHtml(product.seller?.trustLevel || 'Bronze')} · 정상거래 ${escapeHtml(product.seller?.normalTradeCount || 0)}건</span>`;
   $('productDetailMethods').innerHTML = product.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('');
+  const walletActions = [];
+  if (product.methods.includes('direct')) walletActions.push(product.directWalletAvailable
+    ? '<button class="secondary" data-wallet-qr="direct">판매자 지갑 QR</button>'
+    : '<p class="form-notice">판매자가 직거래 지갑을 아직 등록하지 않았습니다.</p>');
+  if (product.methods.includes('parcel_testnet')) walletActions.push('<button class="secondary" data-wallet-qr="safe">안전거래 사업지갑 QR</button>');
+  $('productWalletPayment').innerHTML = walletActions.join('');
+  document.querySelectorAll('[data-wallet-qr]').forEach((button) => button.addEventListener('click', () => showWalletQr(button.dataset.walletQr)));
   $('productDetailReviews').innerHTML = '<p class="empty">후기를 불러오는 중입니다.</p>';
   $('toggleFavorite').textContent = product.isFavorite ? '♥ 찜 해제' : '♡ 찜하기';
   $('productDetailPanel').classList.remove('hidden');
@@ -628,16 +635,31 @@ async function openProductDetail(productId, addHistory = true) {
   } catch (error) { $('productDetailReviews').innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`; }
 }
 
+async function showWalletQr(mode) {
+  const product = state.selectedProduct;
+  if (!product) return;
+  try {
+    const result = await api(`/api/v1/products/${encodeURIComponent(product.id)}/wallet-qr?mode=${encodeURIComponent(mode)}`);
+    const direct = mode === 'direct';
+    $('productWalletPayment').innerHTML = `<article class="management-card"><div><small>${direct ? '직거래 개인지갑' : 'Testnet 안전거래 사업지갑'}</small><h3>${escapeHtml(result.amount)} Test-Pi</h3><div class="wallet-qr">${result.qrSvg}</div><p class="wallet-address">${escapeHtml(result.address)}</p><p class="form-notice">${direct ? '판매자 개인 지갑으로 직접 송금합니다. 플랫폼 보호·정산·환불이 적용되지 않습니다.' : 'Global Market Testnet 사업지갑입니다. 입금 확인과 환불·판매자 정산은 관리자가 수동 처리합니다.'}</p><button type="button" data-copy-wallet>지갑주소 복사</button></div></article>`;
+    document.querySelector('[data-copy-wallet]')?.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(result.address); alert('지갑주소를 복사했습니다.'); }
+      catch { prompt('지갑주소를 길게 눌러 복사하세요.', result.address); }
+    });
+  } catch (error) { alert(error.message); }
+}
+
 async function registerProduct(event) {
   event.preventDefault();
   if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.');
   const methods = [];
   if ($('methodDirect').checked) methods.push('direct');
   if ($('methodParcel').checked) methods.push('parcel_testnet');
+  if (methods.includes('direct') && !$('productDirectWallet').value.trim()) return alert('직거래용 Pi 지갑주소를 입력하세요.');
   try {
     $('registerResult').textContent = '사진과 상품 정보를 준비하고 있습니다.';
     const images = [...state.registerImages];
-    const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods, images };
+    const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods, images, directWalletAddress: $('productDirectWallet').value };
     const { product } = await api('/api/v1/products', { method: 'POST', body: JSON.stringify(body) });
     $('registerResult').textContent = product.status === 'under_review' ? '등록 내용이 검토 대상으로 접수됐습니다. 검토 전에는 공개되지 않습니다.' : '시험 상품이 등록됐습니다.';
     $('productForm').reset(); state.registerImages = []; renderImageEditor('registerProductImages', 'registerImages'); $('methodDirect').checked = true; $('methodParcel').checked = true;
@@ -719,6 +741,7 @@ function openProductEdit(product) {
   $('editProductRegion').value = product.region || '';
   $('editMethodDirect').checked = product.methods.includes('direct');
   $('editMethodParcel').checked = product.methods.includes('parcel_testnet');
+  $('editProductDirectWallet').value = product.directWalletAddress || '';
   $('editProductImage').value = '';
   $('editProductResult').textContent = '';
   state.editingImages = [...productImages(product)];
@@ -742,6 +765,7 @@ async function saveProductEdit(event) {
   const methods = [];
   if ($('editMethodDirect').checked) methods.push('direct');
   if ($('editMethodParcel').checked) methods.push('parcel_testnet');
+  if (methods.includes('direct') && !$('editProductDirectWallet').value.trim()) return alert('직거래용 Pi 지갑주소를 입력하세요.');
   try {
     $('editProductResult').textContent = '수정 내용을 확인하고 있습니다.';
     const body = {
@@ -750,7 +774,8 @@ async function saveProductEdit(event) {
       price: Number($('editProductPrice').value),
       categoryId: $('editProductCategory').value,
       region: $('editProductRegion').value,
-      methods
+      methods,
+      directWalletAddress: $('editProductDirectWallet').value
     };
     body.images = [...state.editingImages];
     const { product: updated } = await api(`/api/v1/products/${product.id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -797,9 +822,11 @@ async function openTradeDetail(tradeId) {
   const reviewSection = detail.reviews.length
     ? `<div class="section-title"><div><p class="eyebrow">TRADE REVIEWS</p><h3>이 거래의 후기</h3></div></div><div class="management-list">${detail.reviews.map((item) => `<article class="management-card"><div><small>${item.writerId === state.user.id ? '내가 작성한 후기' : '받은 후기'} · ${escapeHtml(sentimentNames[item.sentiment] || item.sentiment)}</small><p>${escapeHtml(item.comment || '내용 없음')}</p></div></article>`).join('')}</div>`
     : '';
-  const settlementSection = detail.settlement ? `<div class="detail-grid"><p><small>Testnet 정산상태</small><strong>모의정산 완료</strong></p><p><small>판매자 모의정산액</small><strong>${escapeHtml(detail.settlement.netAmount)} Test-Pi</strong></p></div>` : '';
+  const settlementSection = detail.settlement ? `<div class="detail-grid"><p><small>Testnet 정산상태</small><strong>${detail.settlement.status === 'mock_pending_batch' ? '최소 정산금액 대기' : '모의정산 완료'}</strong></p><p><small>${detail.settlement.status === 'mock_pending_batch' ? '판매자 정산 대기 잔액' : '판매자 모의정산액'}</small><strong>${escapeHtml(detail.settlement.status === 'mock_pending_batch' ? detail.settlement.pendingAmount : detail.settlement.netAmount)} Test-Pi</strong></p></div>${detail.settlement.status === 'mock_pending_batch' ? '<p class="form-notice">정산액이 송금 가스비보다 작아 소멸시키지 않고 보관합니다. 다른 판매대금과 합산해 최소 정산금액을 충족하면 일괄 송금합니다.</p>' : ''}` : '';
   const liability = detail.refund?.gasLiability;
-  const refundSection = detail.refund ? `<div class="detail-grid"><p><small>Testnet 환불상태</small><strong>${detail.refund.type === 'partial' ? '부분 모의환불 완료' : '전액 모의환불 완료'}</strong></p><p><small>관리자 과실 판정</small><strong>${escapeHtml(faultNames[liability?.faultType] || '정책 판정 필요')}</strong></p><p><small>가스비 차감 후 구매자 환불액</small><strong>${escapeHtml(liability?.buyerFinalRefund ?? detail.refund.totalBuyerRefund)} Test-Pi</strong></p>${detail.refund.type === 'partial' ? `<p><small>가스비 차감 후 판매자 정산액</small><strong>${escapeHtml(liability?.sellerFinalSettlement ?? detail.refund.retainedAmount)} Test-Pi</strong></p>` : ''}<p><small>구매자 부담 가스비</small><strong>${escapeHtml(liability?.buyerGasLiability ?? 0)} Pi</strong></p><p><small>판매자 부담 가스비</small><strong>${escapeHtml(liability?.sellerGasLiability ?? 0)} Pi</strong></p></div><p class="form-notice"><strong>가스비 정책:</strong> 최초 결제 가스비는 반환되지 않으며 환불·정산 송금 가스비는 각 수령자가 부담합니다. 과실과 관계없이 상대방에게 가스비 보상을 청구하지 않습니다.</p>` : '';
+  const currentGasPolicy = liability?.gasPolicy === 'each_party_bears_own_fee';
+  const expectedSellerBalance = Math.round((Number(detail.refund?.retainedAmount || 0) * 0.99 + Number.EPSILON) * 10000000) / 10000000;
+  const refundSection = detail.refund ? `<div class="detail-grid"><p><small>Testnet 환불상태</small><strong>${detail.refund.type === 'partial' ? '부분 모의환불 완료' : '전액 모의환불 완료'}</strong></p><p><small>관리자 과실 판정</small><strong>${escapeHtml(faultNames[liability?.faultType] || '정책 판정 필요')}</strong></p><p><small>구매자 환불 예정액</small><strong>${escapeHtml(currentGasPolicy ? (liability?.buyerFinalRefund ?? detail.refund.totalBuyerRefund) : detail.refund.totalBuyerRefund)} Test-Pi</strong></p>${detail.refund.type === 'partial' ? `<p><small>판매자 정산 대기 잔액</small><strong>${escapeHtml(detail.settlement?.pendingAmount ?? expectedSellerBalance)} Test-Pi</strong></p>` : ''}${currentGasPolicy ? `<p><small>구매자 환불 송금 가스비</small><strong>${escapeHtml(detail.refund.refundTransferGasFee ?? 0)} Pi</strong></p><p><small>판매자 정산 송금 가스비</small><strong>${escapeHtml(detail.refund.settlementTransferGasFee ?? 0)} Pi</strong></p>` : ''}</div><p class="form-notice"><strong>${currentGasPolicy ? '현재 가스비 정책' : '이전 시험 정책 기록'}:</strong> ${currentGasPolicy ? '환불·정산 송금 가스비는 각 수령자가 부담하며, 소액 판매대금은 정산 대기 잔액으로 보관합니다.' : '과거의 가스비 보상·미납 계산값은 현재 정책에 사용하지 않습니다. 판매자 부담 0.03 Pi 표시는 폐기되었습니다.'}</p>` : '';
   $('tradeDetailContent').innerHTML = `<p class="eyebrow">${trade.myRole === 'buyer' ? '구매 거래' : '판매 거래'}</p><h3>${escapeHtml(tradeTitle)}</h3><div class="detail-grid"><p><small>거래상태</small><strong>${escapeHtml(statusNames[trade.status] || trade.status)}</strong></p><p><small>거래금액</small><strong>${escapeHtml(trade.amount)} Test-Pi</strong></p><p><small>거래방식</small><strong>${trade.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p><small>정산보류</small><strong>${trade.settlementHold ? '보류중' : '없음'}</strong></p></div>${settlementSection}${refundSection}${reviewSection}`;
   const actions = [];
   if (trade.type === 'parcel_testnet' && trade.myRole === 'buyer' && trade.status === 'payment_pending') actions.push(['actionPay', 'Test-Pi 결제', 'primary']);

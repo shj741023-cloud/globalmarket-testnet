@@ -10,6 +10,7 @@ const valid = {
   price: 25,
   categoryId: 'digital_devices',
   methods: ['direct', 'parcel_testnet'],
+  directWalletAddress: `G${'A'.repeat(55)}`,
   region: '서울'
 };
 
@@ -31,6 +32,11 @@ test('필수 정보와 허용 카테고리를 검증한다', () => {
 
 test('지원하지 않는 거래방식을 차단한다', () => {
   assert.throws(() => validateProductInput({ ...valid, methods: ['mainnet'] }), /거래방식/);
+});
+
+test('직거래 상품은 유효한 Pi 지갑주소가 필요하다', () => {
+  assert.throws(() => validateProductInput({ ...valid, directWalletAddress: '' }), /지갑주소/);
+  assert.equal(validateProductInput({ ...valid, methods: ['parcel_testnet'], directWalletAddress: '' }).value.directWalletAddress, '');
 });
 
 test('압축된 JPEG·PNG·WebP 상품 사진만 허용한다', () => {

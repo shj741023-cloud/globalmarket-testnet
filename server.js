@@ -59,6 +59,8 @@ const { offsetDebts } = require('./lib/debt-offset');
 const { assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt, decideGasDebtAppeal } = require('./lib/trading-restrictions');
 const { listPopularProducts, setPopularProduct } = require('./lib/popular-products');
 const { createCampaign, endCampaign } = require('./lib/promotion-campaigns');
+const { normalizeWalletAddress } = require('./lib/wallets');
+const QRCode = require('qrcode');
 
 assertTestnetEnvironment();
 
@@ -200,6 +202,10 @@ function applySettlementDebtOffsets(trade, settlement) {
 function applySimpleGasPolicy(refund, settlement) {
   if (!refund || refund.gasLiability?.gasPolicy !== 'each_party_bears_own_fee') return false;
   const before = Number(settlement.netAmount || 0);
+  if (settlement.status === 'mock_pending_batch') {
+    settlement.gasPolicy = 'each_party_bears_own_fee';
+    return true;
+  }
   const after = Number(refund.gasLiability.sellerFinalSettlement || 0);
   settlement.netAmountBeforeGas = before;
   settlement.networkGasFee = Number(refund.settlementTransferGasFee || 0);
@@ -325,6 +331,20 @@ async function handleApi(req, res, url) {
     const allItems = searchProducts(store.state.products, query).map((product) => ({ ...publicProduct(store.state, product), isFavorite: favoriteIds.has(product.id) }));
     const page = paginate(allItems, query);
     return sendJson(res, 200, { ok: true, items: page.items, pagination: { total: page.total, limit: page.limit, offset: page.offset, hasMore: page.hasMore }, filters: query });
+  }
+  match = pathname.match(/^\/api\/v1\/products\/([^/]+)\/wallet-qr$/);
+  if (method === 'GET' && match) {
+    const product = store.findProduct(match[1]); if (!findOr404(res, product, 'product')) return;
+    if (!['available', 'reserved'].includes(product.status)) return apiError(res, 409, 'PRODUCT_NOT_PAYABLE', '현재 결제할 수 없는 상품입니다.');
+    const mode = url.searchParams.get('mode');
+    if (mode !== 'direct' && mode !== 'safe') return apiError(res, 400, 'INVALID_PAYMENT_MODE', '직거래 또는 안전거래 QR만 요청할 수 있습니다.');
+    const address = mode === 'direct'
+      ? normalizeWalletAddress(product.directWalletAddress, { required: true })
+      : normalizeWalletAddress(process.env.TESTNET_BUSINESS_WALLET_ADDRESS, { required: true });
+    if (mode === 'direct' && !product.methods.includes('direct')) return apiError(res, 409, 'DIRECT_TRADE_UNAVAILABLE', '직거래를 지원하지 않는 상품입니다.');
+    if (mode === 'safe' && !product.methods.includes('parcel_testnet')) return apiError(res, 409, 'SAFE_TRADE_UNAVAILABLE', '안전거래를 지원하지 않는 상품입니다.');
+    const svg = await QRCode.toString(address, { type: 'svg', width: 320, margin: 2, errorCorrectionLevel: 'M' });
+    return sendJson(res, 200, { ok: true, mode, address, amount: product.price, qrSvg: svg, manualConfirmation: true });
   }
   if (method === 'GET' && pathname === '/api/v1/popular-products') {
     const items = listPopularProducts(store.state.products).slice(0, 12).map((product) => publicProduct(store.state, product));

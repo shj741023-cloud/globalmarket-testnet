@@ -15,5 +15,7 @@ services:
         sync: false
       - key: TEST_ADMIN_KEY
         sync: false
+      - key: TESTNET_BUSINESS_WALLET_ADDRESS
+        sync: false
       - key: DATABASE_URL
         sync: false
