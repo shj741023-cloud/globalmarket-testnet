@@ -7,6 +7,39 @@ const shortReference = (value) => { const text = String(value || ''); return tex
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
 const productImages = (product) => (Array.isArray(product?.images) ? product.images : (product?.imageData ? [product.imageData] : [])).map(safeProductImage).filter(Boolean).slice(0, 3);
 
+function pushAppHistory(entry) {
+  if (state.handlingHistory) return;
+  const next = { gmApp: true, ...entry };
+  if (JSON.stringify(history.state) !== JSON.stringify(next)) history.pushState(next, '', location.href);
+}
+
+function initializeNavigationHistory() {
+  if (!history.state?.gmApp) {
+    history.replaceState({ gmApp: true, gmView: 'exitGuard' }, '', location.href);
+    history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
+  }
+  window.addEventListener('popstate', async (event) => {
+    const route = event.state;
+    if (!route?.gmApp) return;
+    if (route.gmView === 'exitGuard') {
+      if (confirm('Global Market 앱을 종료할까요?')) history.back();
+      else {
+        history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
+        showHome(false);
+      }
+      return;
+    }
+    state.handlingHistory = true;
+    try {
+      if (route.gmView === 'home') showHome(false);
+      else if (route.gmView === 'search') showSearch(false);
+      else if (route.gmView === 'panel' && $(route.panelId)) showFeaturePanel(route.panelId, false);
+      else if (route.gmView === 'product' && route.productId) await openProductDetail(route.productId, false);
+      else showHome(false);
+    } finally { state.handlingHistory = false; }
+  });
+}
+
 async function compressProductImage(file) {
   if (!file) return null;
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('JPEG, PNG 또는 WebP 사진을 선택하세요.');
@@ -485,7 +518,8 @@ function hideMainPanels() {
   ['productDetailPanel', 'myPanel', 'announcementPanel', 'registerPanel', 'editProductPanel', 'chatPanel', 'tradePanel', 'adminPanel', 'suggestionPanel'].forEach((id) => $(id).classList.add('hidden'));
 }
 
-function showHome() {
+function showHome(addHistory = true) {
+  if (addHistory) pushAppHistory({ gmView: 'home' });
   hideMainPanels();
   state.homeMode = true;
   $('homeNotice').classList.remove('hidden');
@@ -501,7 +535,8 @@ function showHome() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function showSearch() {
+function showSearch(addHistory = true) {
+  if (addHistory) pushAppHistory({ gmView: 'search' });
   hideMainPanels();
   state.homeMode = false;
   $('homeNotice').classList.add('hidden');
@@ -528,7 +563,8 @@ async function openCategory(categoryId) {
   await loadProducts(`categoryId=${encodeURIComponent(categoryId)}`);
 }
 
-function showFeaturePanel(panelId) {
+function showFeaturePanel(panelId, addHistory = true) {
+  if (addHistory) pushAppHistory({ gmView: 'panel', panelId });
   hideMainPanels();
   state.homeMode = false;
   $('homeNotice').classList.add('hidden');
@@ -539,9 +575,10 @@ function showFeaturePanel(panelId) {
   $(panelId).scrollIntoView({ behavior: 'smooth' });
 }
 
-async function openProductDetail(productId) {
+async function openProductDetail(productId, addHistory = true) {
   const product = state.products.find((item) => item.id === productId) || state.popularProducts.find((item) => item.id === productId);
   if (!product) return;
+  if (addHistory) pushAppHistory({ gmView: 'product', productId });
   state.selectedProduct = product;
   const images = productImages(product);
   $('productDetailGallery').innerHTML = images.length
@@ -620,7 +657,7 @@ async function loginPi() {
 
 function applyAuthenticatedUser(user, message = '로그인 유지 중') {
   state.user = user;
-  $('authState').textContent = `${user.username || user.id} · ${message}`;
+  $('authState').textContent = `${user.username || user.id} · ${message} · 오늘 로그인 유지`;
   $('piLogin').classList.add('hidden');
   $('logout').classList.remove('hidden');
   $('checklistPayment').classList.remove('hidden');
@@ -1013,4 +1050,4 @@ $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch(
 $('refreshChats').addEventListener('click', () => loadChats().catch((error) => alert(error.message)));
 $('suggestionForm').addEventListener('submit', submitSuggestion);
 $('refreshSuggestions').addEventListener('click', () => loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }));
-health(); loadProducts(); loadPopularProducts(); loadCategories(); restoreSession();
+initializeNavigationHistory(); health(); loadProducts(); loadPopularProducts(); loadCategories(); restoreSession();
