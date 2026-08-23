@@ -121,6 +121,23 @@ async function prepareSelectedImages(inputId, containerId, imagesKey, resultId) 
   }
 }
 
+async function prepareCapturedImage(inputId, containerId, imagesKey, resultId) {
+  const input = $(inputId);
+  try {
+    if (!input.files.length) return;
+    if (state[imagesKey].length >= 3) throw new Error('상품 사진은 최대 3장까지 등록할 수 있습니다.');
+    $(resultId).textContent = '촬영한 사진을 준비하고 있습니다.';
+    const image = await compressProductImage(input.files[0]);
+    state[imagesKey].push(image);
+    input.value = '';
+    renderImageEditor(containerId, imagesKey);
+    $(resultId).textContent = `${state[imagesKey].length}장의 사진이 준비됐습니다.`;
+  } catch (error) {
+    input.value = '';
+    $(resultId).textContent = error.message;
+  }
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     ...options,
@@ -1099,8 +1116,10 @@ $('mockPayCompensations').addEventListener('click', async()=>{if(!confirm('소�
 $('showAdminAudit').addEventListener('click', () => { showAdminSection('audit'); loadAdminAudit().then((count) => { $('adminResult').textContent = `안전하게 정리된 작업기록 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('productForm').addEventListener('submit', registerProduct);
 $('productImage').addEventListener('change', () => prepareSelectedImages('productImage', 'registerProductImages', 'registerImages', 'registerResult'));
+$('productCamera').addEventListener('change', () => prepareCapturedImage('productCamera', 'registerProductImages', 'registerImages', 'registerResult'));
 $('editProductForm').addEventListener('submit', saveProductEdit);
 $('editProductImage').addEventListener('change', () => prepareSelectedImages('editProductImage', 'editProductImages', 'editingImages', 'editProductResult'));
+$('editProductCamera').addEventListener('change', () => prepareCapturedImage('editProductCamera', 'editProductImages', 'editingImages', 'editProductResult'));
 $('cancelProductEdit').addEventListener('click', closeProductEdit);
 $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch((error) => alert(error.message)));
 $('refreshChats').addEventListener('click', () => loadChats().catch((error) => alert(error.message)));
