@@ -14,24 +14,24 @@ function koreaDateKey(date = new Date()) {
 
 function saveDailySession(token) {
   if (!token) return;
-  localStorage.setItem(DAILY_SESSION_KEY, JSON.stringify({ token, date: koreaDateKey() }));
+  try { localStorage.setItem(DAILY_SESSION_KEY, JSON.stringify({ token, date: koreaDateKey() })); } catch { /* Pi Browser may disable persistent storage; the server cookie remains the fallback. */ }
 }
 
 function loadDailySession() {
   try {
     const saved = JSON.parse(localStorage.getItem(DAILY_SESSION_KEY) || 'null');
     if (!saved?.token || saved.date !== koreaDateKey()) {
-      localStorage.removeItem(DAILY_SESSION_KEY);
+      try { localStorage.removeItem(DAILY_SESSION_KEY); } catch { /* storage unavailable */ }
       return null;
     }
     return saved.token;
   } catch {
-    localStorage.removeItem(DAILY_SESSION_KEY);
+    try { localStorage.removeItem(DAILY_SESSION_KEY); } catch { /* storage unavailable */ }
     return null;
   }
 }
 
-function clearDailySession() { localStorage.removeItem(DAILY_SESSION_KEY); }
+function clearDailySession() { try { localStorage.removeItem(DAILY_SESSION_KEY); } catch { /* storage unavailable */ } }
 
 function pushAppHistory(entry) {
   if (state.handlingHistory) return;
