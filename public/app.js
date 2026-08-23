@@ -6,6 +6,32 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => 
 const shortReference = (value) => { const text = String(value || ''); return text.length > 18 ? `${text.slice(0, 11)}…${text.slice(-6)}` : text; };
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
 const productImages = (product) => (Array.isArray(product?.images) ? product.images : (product?.imageData ? [product.imageData] : [])).map(safeProductImage).filter(Boolean).slice(0, 3);
+const DAILY_SESSION_KEY = 'gm_testnet_daily_session';
+
+function koreaDateKey(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+}
+
+function saveDailySession(token) {
+  if (!token) return;
+  localStorage.setItem(DAILY_SESSION_KEY, JSON.stringify({ token, date: koreaDateKey() }));
+}
+
+function loadDailySession() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DAILY_SESSION_KEY) || 'null');
+    if (!saved?.token || saved.date !== koreaDateKey()) {
+      localStorage.removeItem(DAILY_SESSION_KEY);
+      return null;
+    }
+    return saved.token;
+  } catch {
+    localStorage.removeItem(DAILY_SESSION_KEY);
+    return null;
+  }
+}
+
+function clearDailySession() { localStorage.removeItem(DAILY_SESSION_KEY); }
 
 function pushAppHistory(entry) {
   if (state.handlingHistory) return;
@@ -651,6 +677,7 @@ async function loginPi() {
   });
   const session = await api('/api/v1/auth/pi', { method: 'POST', body: JSON.stringify({ accessToken: auth.accessToken }) });
   state.sessionToken = session.sessionToken;
+  saveDailySession(session.sessionToken);
   applyAuthenticatedUser(session.user, '서버 검증 완료');
   await Promise.all([loadMyMarket(), loadMySuggestions(), loadAnnouncements()]);
 }
@@ -666,12 +693,14 @@ function applyAuthenticatedUser(user, message = '로그인 유지 중') {
 async function restoreSession() {
   $('authState').textContent = '로그인 상태 확인 중';
   try {
+    state.sessionToken ||= loadDailySession();
     const { user } = await api('/api/v1/me');
     applyAuthenticatedUser(user);
     await Promise.all([loadMyMarket(), loadMySuggestions(), loadAnnouncements()]);
   } catch {
     state.user = null;
     state.sessionToken = null;
+    clearDailySession();
     $('authState').textContent = '로그인 전 · Pi Testnet 로그인이 필요합니다.';
     $('piLogin').classList.remove('hidden');
     $('logout').classList.add('hidden');
@@ -958,7 +987,7 @@ async function health() {
   }
 }
 
-async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); $('notificationBadge').classList.add('hidden'); $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>'; ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
+async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); clearDailySession(); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); $('notificationBadge').classList.add('hidden'); $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>'; ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
 
 async function submitSuggestion(event) {
   event.preventDefault();
