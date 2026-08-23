@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/styles.css?v=20260823-1">
   <link rel="stylesheet" href="/payment.css?v=20260820-3">
   <link rel="stylesheet" href="/policy.css">
-  <link rel="stylesheet" href="/management.css?v=20260822-9">
+  <link rel="stylesheet" href="/management.css?v=20260823-1">
 </head>
 <body>
   <header class="topbar">
@@ -123,7 +123,7 @@
       <div class="section-title"><div><p class="eyebrow">테스트 상품 판매</p><h2>중고상품 등록</h2></div></div>
       <p class="form-notice">개인 소유 실물 중고품만 등록할 수 있습니다. 제한품목 의심 내용은 공개되지 않고 검토 상태로 접수됩니다.</p>
       <form id="productForm" class="product-form">
-        <label>상품명<input id="productTitle" name="title" minlength="2" maxlength="80" required></label>
+        <label>상품명<input id="productTitle" name="title" type="text" minlength="2" maxlength="80" inputmode="text" enterkeyhint="next" autocomplete="off" required></label>
         <label>설명<textarea id="productDescription" name="description" minlength="10" maxlength="2000" required></textarea></label>
         <label>상품 사진(선택·최대 3장)<input id="productImage" name="image" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>사진은 선택 즉시 자동으로 축소됩니다. 첫 번째 사진이 대표사진입니다.</small></label>
         <div class="photo-actions"><label class="secondary camera-button">카메라로 촬영<input id="productCamera" class="camera-input" type="file" accept="image/*" capture="environment"></label><small>촬영한 사진은 기존 사진 뒤에 추가됩니다.</small></div>
@@ -229,6 +229,6 @@
   </nav>
 
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-  <script src="/app.js?v=20260823-4"></script>
+  <script src="/app.js?v=20260823-5"></script>
 </body>
 </html>

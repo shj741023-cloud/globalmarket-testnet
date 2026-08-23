@@ -28,6 +28,7 @@
 .product-form { display: grid; gap: 14px; }
 .product-form label:not(.check) { display: grid; gap: 6px; font-weight: 700; }
 .product-form input, .product-form textarea, .product-form select { width: 100%; padding: 12px; border: 1px solid #d9ddd7; border-radius: 10px; background: #fff; font: inherit; }
+.product-form input[type="text"] { min-height: 48px; font-size: 16px; touch-action: manipulation; user-select: text; -webkit-user-select: text; }
 .product-form textarea { min-height: 120px; resize: vertical; }
 .product-form small { color: #64736d; font-weight: 400; }
 .qna-list-title { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 12px; }
