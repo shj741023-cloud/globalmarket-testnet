@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/styles.css?v=20260823-1">
   <link rel="stylesheet" href="/payment.css?v=20260820-3">
   <link rel="stylesheet" href="/policy.css">
-  <link rel="stylesheet" href="/management.css?v=20260828-4">
+  <link rel="stylesheet" href="/management.css?v=20260828-6">
 </head>
 <body>
   <header class="topbar">
@@ -123,9 +123,9 @@
       <div class="section-title"><div><p class="eyebrow">테스트 상품 판매</p><h2>중고상품 등록</h2></div></div>
       <p class="form-notice">개인 소유 실물 중고품만 등록할 수 있습니다. 제한품목 의심 내용은 공개되지 않고 검토 상태로 접수됩니다.</p>
       <form id="productForm" class="product-form">
-        <label>상품명<textarea id="productTitle" class="title-input" name="title" rows="1" minlength="2" maxlength="80" required></textarea></label>
+        <label>상품명<input id="productTitle" name="title" minlength="2" maxlength="80" required></label>
         <label>설명<textarea id="productDescription" name="description" minlength="10" maxlength="2000" required></textarea></label>
-        <div class="photo-actions"><span>상품 사진(최대 3장)</span><div class="photo-buttons"><label class="secondary photo-picker">사진 선택<input id="productImage" name="image" type="file" accept="image/*" multiple></label><label class="secondary photo-picker">카메라 촬영<input id="productCamera" type="file" accept="image/*" capture="environment"></label></div><small>사진은 자동으로 축소되며 첫 번째 사진이 대표사진입니다.</small></div>
+        <label>상품 사진(선택·최대 3장)<input id="productImage" name="image" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>사진은 선택 즉시 자동으로 축소됩니다. 첫 번째 사진이 대표사진입니다.</small></label>
         <div id="registerProductImages" class="image-editor" aria-live="polite"></div>
         <div class="form-row"><label>가격(Test-Pi)<input id="productPrice" name="price" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="productCategory" name="categoryId" required></select></label></div>
         <label>거래 지역<input id="productRegion" name="region" maxlength="60" placeholder="예: 서울 강남구"></label>
@@ -144,7 +144,6 @@
         <label>상품명<input id="editProductTitle" minlength="2" maxlength="80" required></label>
         <label>설명<textarea id="editProductDescription" minlength="10" maxlength="2000" required></textarea></label>
         <label>사진 교체(선택·최대 3장)<input id="editProductImage" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>새 사진을 선택하면 기존 사진 전체가 교체됩니다.</small></label>
-        <div class="photo-actions"><label class="secondary camera-button">카메라로 촬영<input id="editProductCamera" class="camera-input" type="file" accept="image/*" capture="environment"></label><small>촬영한 사진은 기존 사진 뒤에 추가됩니다.</small></div>
         <div class="form-row"><label>가격(Test-Pi)<input id="editProductPrice" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="editProductCategory" required></select></label></div>
         <label>거래 지역<input id="editProductRegion" maxlength="60"></label>
         <label>직거래 정산 지갑주소<input id="editProductDirectWallet" maxlength="56" placeholder="G로 시작하는 56자리 Pi 지갑주소"><small>직거래 선택 시 필수입니다.</small></label>
@@ -228,6 +227,6 @@
   </nav>
 
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-  <script src="/app.js?v=20260828-3"></script>
+  <script src="/app.js?v=20260828-4"></script>
 </body>
 </html>
