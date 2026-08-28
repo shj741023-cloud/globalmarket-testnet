@@ -1094,7 +1094,7 @@ $('headerNotifications').addEventListener('click', () => {
 });
 $('navRegister').addEventListener('click', () => {
   if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.');
-  showFeaturePanel('registerPanel');
+  window.location.assign('/register.html');
 });
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('chatPanel'); loadChats().catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('myPanel'); loadMyMarket().catch((error) => alert(error.message)); });

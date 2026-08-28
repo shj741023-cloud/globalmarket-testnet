@@ -23,3 +23,14 @@ test('상품 등록 화면은 위에서 열리고 자동 초점으로 스크롤�
   assert.match(app, /if \(panelId !== 'registerPanel'\)/);
   assert.doesNotMatch(app, /\$\('productTitle'\)\.focus/);
 });
+
+test('Pi Browser 상품 등록은 별도 페이지의 직접 입력 컨트롤을 사용한다', () => {
+  const page = fs.readFileSync(require.resolve('../public/register.html'), 'utf8');
+  const script = fs.readFileSync(require.resolve('../public/register.js'), 'utf8');
+  const app = fs.readFileSync(require.resolve('../public/app.js'), 'utf8');
+  assert.match(app, /window\.location\.assign\('\/register\.html'\)/);
+  assert.match(page, /id="standaloneTitle"/);
+  assert.match(page, /id="standaloneImages"[^>]*type="file"/);
+  assert.match(page, /id="standaloneCamera"[^>]*capture="environment"/);
+  assert.doesNotMatch(script, /\.click\(\)/);
+});
