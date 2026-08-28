@@ -30,6 +30,10 @@
 .product-form input, .product-form textarea, .product-form select { width: 100%; padding: 12px; border: 1px solid #d9ddd7; border-radius: 10px; background: #fff; font: inherit; }
 .product-form input { min-height: 48px; font-size: 16px; }
 .product-form textarea { min-height: 120px; resize: vertical; }
+.product-form textarea.title-input { min-height: 48px; height: 48px; resize: none; overflow: hidden; }
+.photo-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.photo-buttons button { width: 100%; min-height: 48px; }
+.file-input-hidden { display: none !important; }
 .product-form small { color: #64736d; font-weight: 400; }
 .qna-list-title { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 12px; }
 .qna-list-title > div { min-width: 0; }
