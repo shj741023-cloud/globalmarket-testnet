@@ -615,7 +615,14 @@ function showFeaturePanel(panelId, addHistory = true) {
   $('homeCategories').classList.add('hidden');
   $('marketSection').classList.add('hidden');
   $(panelId).classList.remove('hidden');
-  $(panelId).scrollIntoView({ behavior: panelId === 'registerPanel' ? 'auto' : 'smooth', block: 'start' });
+  if (panelId === 'registerPanel') {
+    // Pi Browser에서 화면 이동과 입력 포커스를 동시에 처리하면 첫 터치가
+    // 스크롤로 소비될 수 있다. 등록 화면은 위에 고정하고 입력은 사용자의
+    // 한 번의 터치로 시작한다.
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  } else {
+    $(panelId).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 async function openProductDetail(productId, addHistory = true) {
@@ -1093,7 +1100,6 @@ $('headerNotifications').addEventListener('click', () => {
 $('navRegister').addEventListener('click', () => {
   if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.');
   showFeaturePanel('registerPanel');
-  $('productTitle').focus({ preventScroll: true });
 });
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('chatPanel'); loadChats().catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('myPanel'); loadMyMarket().catch((error) => alert(error.message)); });

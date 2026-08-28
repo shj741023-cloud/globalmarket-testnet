@@ -11,10 +11,10 @@ test('상품 등록과 수정 화면에서 후면 카메라 촬영을 지원한�
   assert.match(app, /prepareCapturedImage/);
 });
 
-test('상품 등록 화면은 애니메이션 없이 열리고 상품명에 즉시 초점을 준다', () => {
+test('상품 등록 화면은 위에서 열리고 자동 초점으로 스크롤을 유발하지 않는다', () => {
   const html = fs.readFileSync(require.resolve('../public/index.html'), 'utf8');
   const app = fs.readFileSync(require.resolve('../public/app.js'), 'utf8');
   assert.match(html, /id="productTitle"[^>]*inputmode="text"/);
-  assert.match(app, /panelId === 'registerPanel' \? 'auto' : 'smooth'/);
-  assert.match(app, /\$\('productTitle'\)\.focus/);
+  assert.match(app, /window\.scrollTo\(\{ top: 0, left: 0, behavior: 'auto' \}\)/);
+  assert.doesNotMatch(app, /\$\('productTitle'\)\.focus/);
 });
