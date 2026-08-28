@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/styles.css?v=20260823-1">
   <link rel="stylesheet" href="/payment.css?v=20260820-3">
   <link rel="stylesheet" href="/policy.css">
-  <link rel="stylesheet" href="/management.css?v=20260828-3">
+  <link rel="stylesheet" href="/management.css?v=20260828-4">
 </head>
 <body>
   <header class="topbar">
@@ -125,7 +125,7 @@
       <form id="productForm" class="product-form">
         <label>상품명<textarea id="productTitle" class="title-input" name="title" rows="1" minlength="2" maxlength="80" required></textarea></label>
         <label>설명<textarea id="productDescription" name="description" minlength="10" maxlength="2000" required></textarea></label>
-        <div class="photo-actions"><span>상품 사진(최대 3장)</span><div class="photo-buttons"><button id="selectProductImages" class="secondary" type="button">사진 선택</button><button id="takeProductPhoto" class="secondary" type="button">카메라 촬영</button></div><input id="productImage" class="file-input-hidden" name="image" type="file" accept="image/*" multiple><input id="productCamera" class="file-input-hidden" type="file" accept="image/*" capture="environment"><small>사진은 자동으로 축소되며 첫 번째 사진이 대표사진입니다.</small></div>
+        <div class="photo-actions"><span>상품 사진(최대 3장)</span><div class="photo-buttons"><label class="secondary photo-picker">사진 선택<input id="productImage" name="image" type="file" accept="image/*" multiple></label><label class="secondary photo-picker">카메라 촬영<input id="productCamera" type="file" accept="image/*" capture="environment"></label></div><small>사진은 자동으로 축소되며 첫 번째 사진이 대표사진입니다.</small></div>
         <div id="registerProductImages" class="image-editor" aria-live="polite"></div>
         <div class="form-row"><label>가격(Test-Pi)<input id="productPrice" name="price" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="productCategory" name="categoryId" required></select></label></div>
         <label>거래 지역<input id="productRegion" name="region" maxlength="60" placeholder="예: 서울 강남구"></label>
@@ -228,6 +228,6 @@
   </nav>
 
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-  <script src="/app.js?v=20260828-2"></script>
+  <script src="/app.js?v=20260828-3"></script>
 </body>
 </html>

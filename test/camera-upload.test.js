@@ -16,10 +16,10 @@ test('상품 등록 화면은 위에서 열리고 자동 초점으로 스크롤�
   const app = fs.readFileSync(require.resolve('../public/app.js'), 'utf8');
   assert.match(html, /<textarea id="productTitle"[^>]*class="title-input"/);
   assert.match(html, /id="productImage"[^>]*accept="image\/\*"/);
-  assert.match(html, /id="selectProductImages"[^>]*>사진 선택<\/button>/);
-  assert.match(html, /id="takeProductPhoto"[^>]*>카메라 촬영<\/button>/);
-  assert.match(app, /\$\('selectProductImages'\).*\$\('productImage'\)\.click/);
-  assert.match(app, /\$\('takeProductPhoto'\).*\$\('productCamera'\)\.click/);
-  assert.match(app, /window\.scrollTo\(\{ top: 0, left: 0, behavior: 'auto' \}\)/);
+  assert.match(html, /class="secondary photo-picker">사진 선택<input id="productImage"/);
+  assert.match(html, /class="secondary photo-picker">카메라 촬영<input id="productCamera"/);
+  assert.doesNotMatch(app, /\$\('productImage'\)\.click/);
+  assert.doesNotMatch(app, /\$\('productCamera'\)\.click/);
+  assert.match(app, /if \(panelId !== 'registerPanel'\)/);
   assert.doesNotMatch(app, /\$\('productTitle'\)\.focus/);
 });
