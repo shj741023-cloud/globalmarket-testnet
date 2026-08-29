@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer: null, homeMode: true, products: [], popularProducts: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null };
+const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer: null, homeMode: true, products: [], popularProducts: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null, mandatoryAnnouncements: [] };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const shortReference = (value) => { const text = String(value || ''); return text.length > 18 ? `${text.slice(0, 11)}…${text.slice(-6)}` : text; };
@@ -220,7 +220,7 @@ async function loadAdminSuggestions() {
 }
 
 function renderAdminAnnouncements(items) {
-  $('adminAnnouncements').innerHTML = `<button id="createAdminAnnouncement" class="primary wide" type="button">새 운영 공지 등록</button>${items.length ? items.map((item) => `<article class="management-card"><div><strong>${escapeHtml(item.title)}</strong><p class="meta">${item.status === 'active' ? '게시 중' : '게시 종료'} · ${escapeHtml(new Date(item.createdAt).toLocaleString())}</p></div><p>${escapeHtml(item.body)}</p>${item.status === 'active' ? `<button class="secondary" type="button" data-announcement-archive="${escapeHtml(item.id)}">공지 종료</button>` : `<p class="meta">종료 사유: ${escapeHtml(item.archiveReason || '')}</p>`}</article>`).join('') : '<p class="empty">등록된 운영 공지가 없습니다.</p>'}`;
+  $('adminAnnouncements').innerHTML = `<button id="createAdminAnnouncement" class="primary wide" type="button">새 운영 공지 등록</button>${items.length ? items.map((item) => `<article class="management-card"><div><strong>${item.mandatory ? '<span class="mandatory-label">필수 확인</span> ' : ''}${escapeHtml(item.title)}</strong><p class="meta">${item.status === 'active' ? '게시 중' : '게시 종료'} · ${escapeHtml(new Date(item.createdAt).toLocaleString())}</p></div><p>${escapeHtml(item.body)}</p>${item.status === 'active' ? `<button class="secondary" type="button" data-announcement-archive="${escapeHtml(item.id)}">공지 종료</button>` : `<p class="meta">종료 사유: ${escapeHtml(item.archiveReason || '')}</p>`}</article>`).join('') : '<p class="empty">등록된 운영 공지가 없습니다.</p>'}`;
   $('createAdminAnnouncement').addEventListener('click', createAdminAnnouncement);
   $('adminAnnouncements').querySelectorAll('[data-announcement-archive]').forEach((button) => button.addEventListener('click', () => archiveAdminAnnouncement(button.dataset.announcementArchive)));
 }
@@ -230,10 +230,11 @@ async function createAdminAnnouncement() {
   const title = prompt('모든 고객에게 표시할 운영 공지 제목을 입력하세요.');
   if (!title?.trim()) return;
   const body = prompt('이용 주의사항 또는 편의사항을 입력하세요.');
-  if (!body?.trim() || !confirm('이 내용을 모든 고객의 상단 알림종에 게시할까요?')) return;
+  if (!body?.trim()) return;
+  const mandatory = confirm('모든 사용자가 반드시 확인해야 하는 중요 공지로 등록할까요?\n\n확인: 앱 사용 전 필수 확인\n취소: 알림종에서 확인하는 일반 공지');
   try {
-    await adminApi('/api/v1/admin/announcements', { method: 'POST', body: JSON.stringify({ title: title.trim(), body: body.trim() }) });
-    $('adminResult').textContent = '관리팀 운영 공지를 게시했습니다. 모든 고객의 알림종에 새 공지 숫자가 표시됩니다.';
+    await adminApi('/api/v1/admin/announcements', { method: 'POST', body: JSON.stringify({ title: title.trim(), body: body.trim(), mandatory }) });
+    $('adminResult').textContent = mandatory ? '필수 확인 공지를 게시했습니다. 확인 전에는 로그인 사용자의 앱 이용이 차단됩니다.' : '관리팀 운영 공지를 게시했습니다. 모든 고객의 알림종에 새 공지 숫자가 표시됩니다.';
     await Promise.all([loadAdminAnnouncements(), ...(state.user ? [loadAnnouncements()] : [])]);
   } catch (error) { $('adminResult').textContent = error.message; }
 }
@@ -890,13 +891,40 @@ async function loadAnnouncements(markRead = false) {
   const unreadCount = items.filter((item) => !item.read).length;
   $('notificationBadge').textContent = unreadCount > 99 ? '99+' : String(unreadCount);
   $('notificationBadge').classList.toggle('hidden', unreadCount === 0);
-  $('announcements').innerHTML = items.length ? items.map((item) => `<article class="management-card ${item.read ? '' : 'unread'}"><div><small>${item.read ? '확인한 관리팀 알림' : '새 관리팀 알림'}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p><p class="meta">${escapeHtml(new Date(item.createdAt).toLocaleString())}</p></div></article>`).join('') : '<p class="empty">현재 게시된 관리팀 알림이 없습니다.</p>';
+  $('announcements').innerHTML = items.length ? items.map((item) => `<article class="management-card ${item.read ? '' : 'unread'}"><div><small>${item.mandatory ? '필수 확인 공지' : (item.read ? '확인한 관리팀 알림' : '새 관리팀 알림')}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p><p class="meta">${escapeHtml(new Date(item.createdAt).toLocaleString())}</p></div></article>`).join('') : '<p class="empty">현재 게시된 관리팀 알림이 없습니다.</p>';
   if (markRead && unreadCount) {
     await api('/api/v1/announcements/read-all', { method: 'POST', body: '{}' });
-    $('notificationBadge').classList.add('hidden');
-    $('announcements').querySelectorAll('.unread').forEach((item) => item.classList.remove('unread'));
+    return loadAnnouncements(false);
   }
+  state.mandatoryAnnouncements = items.filter((item) => item.mandatory && !item.read);
+  renderMandatoryAnnouncementGate();
   return items.length;
+}
+
+function renderMandatoryAnnouncementGate() {
+  const item = state.mandatoryAnnouncements[0];
+  $('mandatoryAnnouncementGate').classList.toggle('hidden', !item);
+  document.body.classList.toggle('mandatory-notice-open', Boolean(item));
+  if (!item) return;
+  $('mandatoryAnnouncementTitle').textContent = item.title;
+  $('mandatoryAnnouncementBody').textContent = item.body;
+  $('mandatoryAnnouncementProgress').textContent = state.mandatoryAnnouncements.length > 1 ? `필수 공지 ${state.mandatoryAnnouncements.length}건이 남았습니다.` : '확인해야 앱을 계속 사용할 수 있습니다.';
+  $('mandatoryAnnouncementResult').textContent = '';
+  $('acknowledgeMandatoryAnnouncement').disabled = false;
+}
+
+async function acknowledgeMandatoryAnnouncement() {
+  const item = state.mandatoryAnnouncements[0];
+  if (!item) return;
+  $('acknowledgeMandatoryAnnouncement').disabled = true;
+  $('mandatoryAnnouncementResult').textContent = '확인 내용을 저장하고 있습니다.';
+  try {
+    await api(`/api/v1/announcements/${encodeURIComponent(item.id)}/acknowledge`, { method: 'POST', body: '{}' });
+    await loadAnnouncements();
+  } catch (error) {
+    $('mandatoryAnnouncementResult').textContent = error.message;
+    $('acknowledgeMandatoryAnnouncement').disabled = false;
+  }
 }
 async function loadMyReports() {
   const { items } = await api('/api/v1/me/reports');
@@ -1014,7 +1042,7 @@ async function health() {
   }
 }
 
-async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); clearDailySession(); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); $('notificationBadge').classList.add('hidden'); $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>'; ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
+async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); clearDailySession(); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; state.mandatoryAnnouncements = []; renderMandatoryAnnouncementGate(); $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); $('notificationBadge').classList.add('hidden'); $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>'; ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
 
 async function submitSuggestion(event) {
   event.preventDefault();
@@ -1073,6 +1101,7 @@ $('headerNotifications').addEventListener('click', () => {
   showFeaturePanel('announcementPanel');
   loadAnnouncements(true).catch((error) => alert(error.message));
 });
+$('acknowledgeMandatoryAnnouncement').addEventListener('click', acknowledgeMandatoryAnnouncement);
 $('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); showFeaturePanel('registerPanel'); });
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('chatPanel'); loadChats().catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('myPanel'); loadMyMarket().catch((error) => alert(error.message)); });

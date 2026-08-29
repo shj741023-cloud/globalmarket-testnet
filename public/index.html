@@ -8,9 +8,19 @@
   <link rel="stylesheet" href="/styles.css?v=20260823-1">
   <link rel="stylesheet" href="/payment.css?v=20260820-3">
   <link rel="stylesheet" href="/policy.css">
-  <link rel="stylesheet" href="/management.css?v=20260828-6">
+  <link rel="stylesheet" href="/management.css?v=20260829-2">
 </head>
 <body>
+  <section id="mandatoryAnnouncementGate" class="mandatory-announcement-gate hidden" role="dialog" aria-modal="true" aria-labelledby="mandatoryAnnouncementTitle">
+    <div class="mandatory-announcement-card">
+      <p class="eyebrow">IMPORTANT NOTICE · 필수 확인</p>
+      <h1 id="mandatoryAnnouncementTitle">중요 공지</h1>
+      <p id="mandatoryAnnouncementBody"></p>
+      <p id="mandatoryAnnouncementProgress" class="meta"></p>
+      <button id="acknowledgeMandatoryAnnouncement" class="primary wide" type="button">내용을 확인했습니다</button>
+      <p id="mandatoryAnnouncementResult" class="status" aria-live="polite"></p>
+    </div>
+  </section>
   <header class="topbar">
     <button id="headerHome" class="topbar-brand" type="button">Global Market</button>
     <div class="topbar-actions">
@@ -227,6 +237,6 @@
   </nav>
 
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-  <script src="/app.js?v=20260829-6"></script>
+  <script src="/app.js?v=20260829-8"></script>
 </body>
 </html>

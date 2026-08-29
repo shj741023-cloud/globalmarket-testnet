@@ -457,11 +457,22 @@ async function handleApi(req, res, url) {
   if (method === 'POST' && pathname === '/api/v1/announcements/read-all') {
     const userId = requireUserId(req, res); if (!userId) return;
     const readIds = new Set(store.state.announcementReads.filter((item) => item.userId === userId).map((item) => item.announcementId));
-    const unread = store.state.announcements.filter((item) => item.status === 'active' && !readIds.has(item.id));
+    const unread = store.state.announcements.filter((item) => item.status === 'active' && !item.mandatory && !readIds.has(item.id));
     const readAt = new Date().toISOString();
     unread.forEach((item) => store.state.announcementReads.push({ id: store.id('announcement_read'), announcementId: item.id, userId, readAt }));
     if (unread.length) await store.save();
     return sendJson(res, 200, { ok: true, markedRead: unread.length });
+  }
+  match = pathname.match(/^\/api\/v1\/announcements\/([^/]+)\/acknowledge$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    const announcement = store.state.announcements.find((item) => item.id === match[1] && item.status === 'active');
+    if (!findOr404(res, announcement, 'announcement')) return;
+    const existing = store.state.announcementReads.find((item) => item.userId === userId && item.announcementId === announcement.id);
+    if (existing) return sendJson(res, 200, { ok: true, acknowledged: true, idempotent: true });
+    store.state.announcementReads.push({ id: store.id('announcement_read'), announcementId: announcement.id, userId, readAt: new Date().toISOString(), acknowledged: true });
+    await store.save();
+    return sendJson(res, 200, { ok: true, acknowledged: true, idempotent: false });
   }
   if (method === 'GET' && pathname === '/api/v1/me/gas-debts') {
     const userId = requireUserId(req, res); if (!userId) return;
@@ -1121,7 +1132,7 @@ async function handleApi(req, res, url) {
     const title = String(body.title || '').trim(); const content = String(body.body || '').trim();
     if (title.length < 2 || title.length > 80) return apiError(res, 400, 'INVALID_TITLE', '제목은 2자 이상 80자 이하로 입력하세요.');
     if (content.length < 5 || content.length > 1000) return apiError(res, 400, 'INVALID_BODY', '내용은 5자 이상 1000자 이하로 입력하세요.');
-    const announcement = { id: store.id('announcement'), title, body: content, status: 'active', createdAt: new Date().toISOString(), createdBy: testAdminId(req) };
+    const announcement = { id: store.id('announcement'), title, body: content, mandatory: body.mandatory === true, status: 'active', createdAt: new Date().toISOString(), createdBy: testAdminId(req) };
     store.state.announcements.push(announcement);
     recordAudit(req, 'ANNOUNCEMENT_CREATED', 'announcement', announcement.id, body.reason || '관리팀 운영 공지 등록', null, announcement);
     await store.save();
