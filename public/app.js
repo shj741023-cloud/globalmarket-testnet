@@ -40,6 +40,7 @@ function closeExitConfirm() {
 
 function openExitConfirm() {
   history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
+  history.pushState({ gmApp: true, gmView: 'exitModal' }, '', location.href);
   showHome(false);
   $('exitConfirm').classList.remove('hidden');
   state.exitConfirmOpen = true;
@@ -52,18 +53,21 @@ function pushAppHistory(entry) {
 }
 
 function initializeNavigationHistory() {
-  if (!history.state?.gmApp) {
+  const navigationType = performance.getEntriesByType?.('navigation')?.[0]?.type;
+  if (navigationType !== 'reload' || !history.state?.gmApp) {
     history.replaceState({ gmApp: true, gmView: 'exitGuard' }, '', location.href);
     history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
   }
   window.addEventListener('popstate', async (event) => {
     const route = event.state;
     if (!route?.gmApp) return;
+    if (state.exitConfirmOpen) {
+      history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
+      closeExitConfirm();
+      return;
+    }
     if (route.gmView === 'exitGuard') {
-      if (state.exitConfirmOpen) {
-        history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
-        closeExitConfirm();
-      } else openExitConfirm();
+      openExitConfirm();
       return;
     }
     state.handlingHistory = true;
@@ -1085,7 +1089,7 @@ $('headerNotifications').addEventListener('click', () => {
   loadAnnouncements(true).catch((error) => alert(error.message));
 });
 $('stayInApp').addEventListener('click', closeExitConfirm);
-$('agreeExit').addEventListener('click', () => { closeExitConfirm(); history.go(-2); });
+$('agreeExit').addEventListener('click', () => { closeExitConfirm(); history.go(-3); });
 $('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); showFeaturePanel('registerPanel'); });
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('chatPanel'); loadChats().catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('myPanel'); loadMyMarket().catch((error) => alert(error.message)); });
