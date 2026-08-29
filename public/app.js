@@ -574,7 +574,7 @@ function showSearch(addHistory = true) {
   $('marketEyebrow').textContent = '상품 찾기';
   $('marketTitle').textContent = '상품 검색';
   $('popularProductsSection').classList.add('hidden');
-  $('marketSection').scrollIntoView({ behavior: 'smooth' });
+  $('marketSection').scrollIntoView({ behavior: 'auto', block: 'start' });
 }
 
 async function openCategory(categoryId) {
@@ -1079,7 +1079,7 @@ $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi T
 $('homeRegister').addEventListener('click', () => $('navRegister').click());
 $('homeMy').addEventListener('click', () => $('navMy').click());
 $('homeQna').addEventListener('click', () => { showFeaturePanel('suggestionPanel'); loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }); });
-$('categoryFilters').addEventListener('click', () => { $('searchForm').classList.toggle('hidden'); if (!$('searchForm').classList.contains('hidden')) $('searchForm').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+$('categoryFilters').addEventListener('click', () => { $('searchForm').classList.toggle('hidden'); if (!$('searchForm').classList.contains('hidden')) $('searchForm').scrollIntoView({ behavior: 'auto', block: 'start' }); });
 $('categoryHome').addEventListener('click', showHome);
 $('openAdmin').addEventListener('click', () => showFeaturePanel('adminPanel'));
 $('closeAdmin').addEventListener('click', () => { stopAdminAlertPolling(); state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminProducts').innerHTML = ''; $('adminPopular').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminSuggestions').innerHTML = ''; $('adminGasDebts').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminAlerts').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
