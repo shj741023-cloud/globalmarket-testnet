@@ -3,11 +3,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-test('새로고침 후에도 종료 방지 기록을 항상 다시 만든다', () => {
+test('종료 방지 기록을 중복해서 만들지 않는다', () => {
   const app = fs.readFileSync(require.resolve('../public/app.js'), 'utf8');
-  assert.match(app, /function initializeNavigationHistory\(\) \{\s*history\.replaceState\(\{ gmApp: true, gmView: 'exitGuard' \}/);
+  assert.match(app, /function initializeNavigationHistory\(\) \{\s*if \(!history\.state\?\.gmApp\)/);
   assert.match(app, /history\.pushState\(\{ gmApp: true, gmView: 'home' \}/);
-  assert.doesNotMatch(app, /if \(!history\.state\?\.gmApp\)/);
 });
 
 test('명시적 동의 버튼만 앱 종료 기록으로 이동한다', () => {

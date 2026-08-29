@@ -52,8 +52,10 @@ function pushAppHistory(entry) {
 }
 
 function initializeNavigationHistory() {
-  history.replaceState({ gmApp: true, gmView: 'exitGuard' }, '', location.href);
-  history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
+  if (!history.state?.gmApp) {
+    history.replaceState({ gmApp: true, gmView: 'exitGuard' }, '', location.href);
+    history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
+  }
   window.addEventListener('popstate', async (event) => {
     const route = event.state;
     if (!route?.gmApp) return;
