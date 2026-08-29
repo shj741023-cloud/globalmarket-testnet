@@ -33,19 +33,6 @@ function loadDailySession() {
 
 function clearDailySession() { try { localStorage.removeItem(DAILY_SESSION_KEY); } catch { /* storage unavailable */ } }
 
-function closeExitConfirm() {
-  $('exitConfirm').classList.add('hidden');
-  state.exitConfirmOpen = false;
-}
-
-function openExitConfirm() {
-  history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
-  history.pushState({ gmApp: true, gmView: 'exitModal' }, '', location.href);
-  showHome(false);
-  $('exitConfirm').classList.remove('hidden');
-  state.exitConfirmOpen = true;
-}
-
 function pushAppHistory(entry) {
   if (state.handlingHistory) return;
   const next = { gmApp: true, ...entry };
@@ -53,21 +40,19 @@ function pushAppHistory(entry) {
 }
 
 function initializeNavigationHistory() {
-  const navigationType = performance.getEntriesByType?.('navigation')?.[0]?.type;
-  if (navigationType !== 'reload' || !history.state?.gmApp) {
+  if (!history.state?.gmApp) {
     history.replaceState({ gmApp: true, gmView: 'exitGuard' }, '', location.href);
     history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
   }
   window.addEventListener('popstate', async (event) => {
     const route = event.state;
     if (!route?.gmApp) return;
-    if (state.exitConfirmOpen) {
-      history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
-      closeExitConfirm();
-      return;
-    }
     if (route.gmView === 'exitGuard') {
-      openExitConfirm();
+      if (confirm('Global Market 앱을 종료할까요?')) history.back();
+      else {
+        history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
+        showHome(false);
+      }
       return;
     }
     state.handlingHistory = true;
@@ -1088,8 +1073,6 @@ $('headerNotifications').addEventListener('click', () => {
   showFeaturePanel('announcementPanel');
   loadAnnouncements(true).catch((error) => alert(error.message));
 });
-$('stayInApp').addEventListener('click', closeExitConfirm);
-$('agreeExit').addEventListener('click', () => { closeExitConfirm(); history.go(-3); });
 $('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); showFeaturePanel('registerPanel'); });
 $('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('chatPanel'); loadChats().catch((error) => alert(error.message)); });
 $('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('myPanel'); loadMyMarket().catch((error) => alert(error.message)); });

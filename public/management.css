@@ -31,12 +31,6 @@
 .product-form input { min-height: 48px; font-size: 16px; }
 .product-form textarea { min-height: 120px; resize: vertical; }
 .product-form small { color: #64736d; font-weight: 400; }
-.exit-confirm { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(19,42,34,.55); }
-.exit-confirm.hidden { display: none !important; }
-.exit-confirm-card { width: min(420px,100%); padding: 24px; border-radius: 20px; background: #fff; box-shadow: 0 18px 50px rgba(19,42,34,.24); }
-.exit-confirm-card h2 { margin-bottom: 10px; font-size: 22px; }
-.exit-confirm-card p { color: #64736d; }
-.exit-confirm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
 .qna-list-title { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 12px; }
 .qna-list-title > div { min-width: 0; }
 .qna-list-title h2 { word-break: keep-all; white-space: nowrap; }
