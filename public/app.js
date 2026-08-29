@@ -610,7 +610,7 @@ async function openProductDetail(productId, addHistory = true) {
   $('productDetailGallery').innerHTML = images.length
     ? images.map((image, index) => `<img src="${image}" alt="${escapeHtml(product.title)} 상품 사진 ${index + 1}">`).join('')
     : '<div class="empty-image" aria-hidden="true">◉</div>';
-  $('productDetailCategory').textContent = state.categories.find((item) => item.id === product.categoryId)?.name || '실물 중고상품';
+  $('productDetailCategory').textContent = state.categories.find((item) => item.id === product.categoryId)?.name || '실물 상품';
   $('productDetailTitle').textContent = product.title;
   $('productDetailPrice').textContent = `${product.price} Test-Pi`;
   $('productDetailDescription').textContent = product.description;
