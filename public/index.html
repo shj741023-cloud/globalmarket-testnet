@@ -134,7 +134,7 @@
       <p class="form-notice">개인이 소유한 사용하지 않는 실물 상품을 등록할 수 있습니다. 제한품목으로 의심되는 내용은 공개되지 않고 검토 상태로 접수됩니다.</p>
       <form id="productForm" class="product-form">
         <label>상품명<input id="productTitle" name="title" minlength="2" maxlength="80" required></label>
-        <label>설명<textarea id="productDescription" name="description" minlength="10" maxlength="2000" required></textarea></label>
+        <label>상품 설명<textarea id="productDescription" name="description" minlength="10" maxlength="2000" placeholder="구매 시기, 사용 기간, 상품 상태, 구성품, 흠집·고장 여부, 거래 희망 지역을 입력해 주세요." required></textarea></label>
         <label>상품 사진(선택·최대 3장)<input id="productImage" name="image" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>사진은 선택 즉시 자동으로 축소됩니다. 첫 번째 사진이 대표사진입니다.</small></label>
         <div id="registerProductImages" class="image-editor" aria-live="polite"></div>
         <div class="form-row"><label>가격(Test-Pi)<input id="productPrice" name="price" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="productCategory" name="categoryId" required></select></label></div>
@@ -152,7 +152,7 @@
       <div id="editProductImages" class="image-editor"></div>
       <form id="editProductForm" class="product-form">
         <label>상품명<input id="editProductTitle" minlength="2" maxlength="80" required></label>
-        <label>설명<textarea id="editProductDescription" minlength="10" maxlength="2000" required></textarea></label>
+        <label>상품 설명<textarea id="editProductDescription" minlength="10" maxlength="2000" placeholder="구매 시기, 사용 기간, 상품 상태, 구성품, 흠집·고장 여부, 거래 희망 지역을 입력해 주세요." required></textarea></label>
         <label>사진 교체(선택·최대 3장)<input id="editProductImage" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>새 사진을 선택하면 기존 사진 전체가 교체됩니다.</small></label>
         <div class="form-row"><label>가격(Test-Pi)<input id="editProductPrice" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="editProductCategory" required></select></label></div>
         <label>거래 지역<input id="editProductRegion" maxlength="60"></label>
