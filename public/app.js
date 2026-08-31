@@ -617,14 +617,8 @@ async function openProductDetail(productId, addHistory = true) {
   $('productDetailDescription').textContent = product.description;
   $('productDetailMeta').textContent = `${product.region} · Testnet 기능시험 상품`;
   $('productDetailSeller').innerHTML = `<small>판매자</small><strong>${escapeHtml(product.seller?.username || 'Pi 사용자')}</strong><span>${escapeHtml(product.seller?.trustLevel || 'Bronze')} · 정상거래 ${escapeHtml(product.seller?.normalTradeCount || 0)}건</span>`;
-  $('productDetailMethods').innerHTML = product.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('');
-  const walletActions = [];
-  if (product.methods.includes('direct')) walletActions.push(product.directWalletAvailable
-    ? '<button class="secondary" data-start-trade="direct">직거래로 진행</button>'
-    : '<p class="form-notice">판매자가 직거래 지갑을 아직 등록하지 않았습니다.</p>');
-  if (product.methods.includes('parcel_testnet')) walletActions.push('<button class="primary" data-start-trade="parcel_testnet">안전거래로 진행</button><p class="form-notice">결제 지갑은 Global Market 사업지갑으로 자동 설정됩니다.</p>');
-  $('productWalletPayment').innerHTML = walletActions.join('');
-  document.querySelectorAll('[data-start-trade]').forEach((button) => button.addEventListener('click', () => chooseTrade(product.id, button.dataset.startTrade).catch((error) => alert(error.message))));
+  $('productDetailMethods').innerHTML = `<small>가능한 거래방법</small><strong>${product.methods.map((method) => method === 'direct' ? '직거래' : 'Testnet 택배 안전거래').join(' · ')}</strong>`;
+  $('productWalletPayment').innerHTML = '';
   $('productDetailReviews').innerHTML = '<p class="empty">후기를 불러오는 중입니다.</p>';
   $('toggleFavorite').textContent = product.isFavorite ? '♥ 찜 해제' : '♡ 찜하기';
   $('productDetailPanel').classList.remove('hidden');
@@ -679,11 +673,11 @@ async function registerProduct(event) {
 
 async function chooseTrade(productId, preferredType = null) {
   if (!state.user) { alert('Pi Testnet 로그인 후 거래조건을 제안할 수 있습니다.'); return; }
-  const product = state.products.find((item) => item.id === productId);
+  const product = state.selectedProduct?.id === productId ? state.selectedProduct : state.products.find((item) => item.id === productId) || state.popularProducts.find((item) => item.id === productId);
   if (!product) throw new Error('상품 정보를 다시 불러오세요.');
   let type = preferredType;
   if (!type && product.methods.length === 1) type = product.methods[0];
-  else if (!type) type = confirm('확인: Testnet 택배 모의 안전거래\n취소: 직거래(플랫폼 안전결제 없음)') ? 'parcel_testnet' : 'direct';
+  else if (!type) return showTradeMethodChoices(product);
   if (!product.methods.includes(type)) throw new Error('판매자가 허용한 거래방식만 선택할 수 있습니다.');
   const { room } = await api(`/api/v1/products/${productId}/chat-rooms`, { method: 'POST' });
   const { agreement } = await api(`/api/v1/chat-rooms/${room.id}/agreements`, {
@@ -699,6 +693,17 @@ async function chooseTrade(productId, preferredType = null) {
   log(`채팅방 생성: ${room.id}`);
   log(`거래조건 제안 및 구매자 확인 완료: ${agreement.id}\n판매자가 같은 조건을 확인한 뒤에만 거래가 생성됩니다.`);
   $('tradePanel').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showTradeMethodChoices(product) {
+  const choices = [];
+  if (product.methods.includes('direct')) choices.push(product.directWalletAvailable
+    ? '<button class="secondary" type="button" data-trade-method="direct">직거래 선택</button>'
+    : '<p class="form-notice">판매자의 직거래 지갑이 등록되지 않아 직거래를 선택할 수 없습니다.</p>');
+  if (product.methods.includes('parcel_testnet')) choices.push('<button class="primary" type="button" data-trade-method="parcel_testnet">택배 안전거래 선택</button>');
+  $('productWalletPayment').innerHTML = `<article class="management-card"><div><small>거래방법 선택</small><h3>어떻게 거래할까요?</h3><p class="meta">안전거래 결제는 Global Market 사업지갑으로 자동 연결됩니다.</p><div class="actions">${choices.join('')}</div></div></article>`;
+  $('productWalletPayment').querySelectorAll('[data-trade-method]').forEach((button) => button.addEventListener('click', () => chooseTrade(product.id, button.dataset.tradeMethod).catch((error) => alert(error.message))));
+  $('productWalletPayment').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 async function loginPi() {
