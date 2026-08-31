@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer: null, homeMode: true, products: [], popularProducts: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null, mandatoryAnnouncements: [] };
+const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer: null, homeMode: true, products: [], popularProducts: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null, activeChatProduct: null, mandatoryAnnouncements: [] };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const shortReference = (value) => { const text = String(value || ''); return text.length > 18 ? `${text.slice(0, 11)}…${text.slice(-6)}` : text; };
@@ -843,7 +843,9 @@ async function openTradeDetail(tradeId) {
   const currentGasPolicy = liability?.gasPolicy === 'each_party_bears_own_fee';
   const expectedSellerBalance = Math.round((Number(detail.refund?.retainedAmount || 0) * 0.99 + Number.EPSILON) * 10000000) / 10000000;
   const refundSection = detail.refund ? `<div class="detail-grid"><p><small>Testnet 환불상태</small><strong>${detail.refund.type === 'partial' ? '부분 모의환불 완료' : '전액 모의환불 완료'}</strong></p><p><small>관리자 과실 판정</small><strong>${escapeHtml(faultNames[liability?.faultType] || '정책 판정 필요')}</strong></p><p><small>구매자 환불 예정액</small><strong>${escapeHtml(currentGasPolicy ? (liability?.buyerFinalRefund ?? detail.refund.totalBuyerRefund) : detail.refund.totalBuyerRefund)} Test-Pi</strong></p>${detail.refund.type === 'partial' ? `<p><small>판매자 정산 대기 잔액</small><strong>${escapeHtml(detail.settlement?.pendingAmount ?? expectedSellerBalance)} Test-Pi</strong></p>` : ''}${currentGasPolicy ? `<p><small>구매자 환불 송금 가스비</small><strong>${escapeHtml(detail.refund.refundTransferGasFee ?? 0)} Pi</strong></p><p><small>판매자 정산 송금 가스비</small><strong>${escapeHtml(detail.refund.settlementTransferGasFee ?? 0)} Pi</strong></p>` : ''}</div><p class="form-notice"><strong>${currentGasPolicy ? '현재 가스비 정책' : '이전 시험 정책 기록'}:</strong> ${currentGasPolicy ? '환불·정산 송금 가스비는 각 수령자가 부담하며, 소액 판매대금은 정산 대기 잔액으로 보관합니다.' : '과거의 가스비 보상·미납 계산값은 현재 정책에 사용하지 않습니다. 판매자 부담 0.03 Pi 표시는 폐기되었습니다.'}</p>` : '';
-  $('tradeDetailContent').innerHTML = `<p class="eyebrow">${trade.myRole === 'buyer' ? '구매 거래' : '판매 거래'}</p><h3>${escapeHtml(tradeTitle)}</h3><div class="detail-grid"><p><small>거래상태</small><strong>${escapeHtml(statusNames[trade.status] || trade.status)}</strong></p><p><small>거래금액</small><strong>${escapeHtml(trade.amount)} Test-Pi</strong></p><p><small>거래방식</small><strong>${trade.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p><small>정산보류</small><strong>${trade.settlementHold ? '보류중' : '없음'}</strong></p></div>${settlementSection}${refundSection}${reviewSection}`;
+  const directWallet = trade.type === 'direct' ? detail.product?.directWalletAddress : '';
+  const directWalletSection = directWallet ? `<article class="management-card"><div><small>판매자 직거래 지갑</small><p class="wallet-address">${escapeHtml(directWallet)}</p><p class="form-notice">직거래 송금과 상품 확인은 당사자 책임이며 플랫폼 안전거래·환불 보호가 적용되지 않습니다.</p><button type="button" data-copy-direct-wallet class="secondary">지갑주소 복사</button></div></article>` : '';
+  $('tradeDetailContent').innerHTML = `<p class="eyebrow">${trade.myRole === 'buyer' ? '구매 거래' : '판매 거래'}</p><h3>${escapeHtml(tradeTitle)}</h3><div class="detail-grid"><p><small>거래상태</small><strong>${escapeHtml(statusNames[trade.status] || trade.status)}</strong></p><p><small>거래금액</small><strong>${escapeHtml(trade.amount)} Test-Pi</strong></p><p><small>거래방식</small><strong>${trade.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p><small>정산보류</small><strong>${trade.settlementHold ? '보류중' : '없음'}</strong></p></div>${directWalletSection}${settlementSection}${refundSection}${reviewSection}`;
   const actions = [];
   if (trade.type === 'parcel_testnet' && trade.myRole === 'buyer' && trade.status === 'payment_pending') actions.push(['actionPay', 'Test-Pi 결제', 'primary']);
   if (trade.purpose === 'pi_checklist' && trade.myRole === 'buyer' && trade.status === 'shipping_pending') actions.push(['actionChecklistShip', 'Testnet 발송 처리', 'primary']);
@@ -857,7 +859,16 @@ async function openTradeDetail(tradeId) {
   if (['purchase_confirmed', 'completed'].includes(trade.status) && !detail.reviews.some((item) => item.writerId === state.user.id)) actions.push(['actionReview', '후기 작성', 'secondary']);
   actions.push(['actionReport', '거래 신고', 'secondary']);
   $('tradeActions').innerHTML = actions.map(([id, label, style]) => `<button id="${id}" class="${style}">${label}</button>`).join('') || '<p class="status">현재 사용자가 처리할 다음 작업이 없습니다.</p>';
-  $('tradeDetailCard').classList.remove('hidden'); bindTradeActions(detail); $('tradeDetailCard').scrollIntoView({ behavior: 'smooth' });
+  $('tradeDetailCard').classList.remove('hidden');
+  $('tradeDetailContent').querySelector('[data-copy-direct-wallet]')?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(directWallet);
+      alert('판매자 지갑주소를 복사했습니다.');
+    } catch {
+      prompt('지갑주소를 길게 눌러 복사하세요.', directWallet);
+    }
+  });
+  bindTradeActions(detail); $('tradeDetailCard').scrollIntoView({ behavior: 'smooth' });
 }
 
 function bindTradeActions(detail) {
@@ -994,18 +1005,32 @@ async function loadChats() {
 }
 
 async function openChat(roomId) {
-  const data = await api(`/api/v1/chat-rooms/${roomId}`); state.activeRoom = data.room; state.agreement = data.agreement;
-  $('chatTitle').textContent = state.products.find((item) => item.id === data.room.productId)?.title || '거래 채팅';
+  const data = await api(`/api/v1/chat-rooms/${roomId}`); state.activeRoom = data.room; state.agreement = data.agreement; state.activeChatProduct = data.product;
+  $('chatTitle').textContent = data.product?.title || state.products.find((item) => item.id === data.room.productId)?.title || '거래 채팅';
   $('chatMessages').innerHTML = data.messages.length ? data.messages.map((message) => `<p class="${message.senderId === state.user.id ? 'mine' : ''}">${escapeHtml(message.content)}</p>`).join('') : '<p class="empty">첫 메시지를 보내보세요.</p>';
   const agreement = data.agreement;
-  $('agreementBox').innerHTML = agreement ? `<p><strong>${escapeHtml(agreement.price)} Test-Pi · ${agreement.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p>구매자 ${agreement.buyerConfirmed ? '확인' : '대기'} · 판매자 ${agreement.sellerConfirmed ? '확인' : '대기'}</p><button id="confirmAgreement" class="primary">이 조건 확인</button>${agreement.buyerConfirmed && agreement.sellerConfirmed ? '<button id="createTrade" class="secondary">거래 시작</button>' : ''}` : '<p>아직 제안된 거래조건이 없습니다.</p>';
+  const isSeller = data.room.sellerId === state.user.id;
+  const directControl = !data.tradeCreated && isSeller ? `<button id="switchAgreementDirect" class="secondary">${data.product?.directWalletAvailable ? '직거래 지갑 변경' : '직거래로 변경·지갑 등록'}</button>` : '';
+  $('agreementBox').innerHTML = agreement ? `<p><strong>${escapeHtml(agreement.price)} Test-Pi · ${agreement.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p>구매자 ${agreement.buyerConfirmed ? '확인' : '대기'} · 판매자 ${agreement.sellerConfirmed ? '확인' : '대기'}</p>${data.tradeCreated ? '<p class="form-notice">거래가 생성되어 거래방법을 변경할 수 없습니다.</p>' : `<button id="confirmAgreement" class="primary">이 조건 확인</button>${agreement.buyerConfirmed && agreement.sellerConfirmed ? '<button id="createTrade" class="secondary">거래 시작</button>' : ''}${directControl}`}` : `<p>아직 제안된 거래조건이 없습니다.</p>${directControl}`;
   $('chatDetail').classList.remove('hidden');
   $('confirmAgreement')?.addEventListener('click', () => confirmCurrentAgreement().catch((error) => alert(error.message)));
   $('createTrade')?.addEventListener('click', () => createCurrentTrade().catch((error) => alert(error.message)));
+  $('switchAgreementDirect')?.addEventListener('click', () => switchAgreementToDirect().catch((error) => alert(error.message)));
   $('chatDetail').scrollIntoView({ behavior: 'smooth' });
 }
 
 async function confirmCurrentAgreement() { await api(`/api/v1/agreements/${state.agreement.id}/confirm`, { method: 'POST' }); await openChat(state.activeRoom.id); await loadChats(); }
+async function switchAgreementToDirect() {
+  if (!state.activeRoom || state.activeRoom.sellerId !== state.user.id) throw new Error('판매자만 직거래 지갑을 등록할 수 있습니다.');
+  const walletAddress = prompt('직거래에 사용할 판매자 Pi 지갑주소를 입력하세요.');
+  if (!walletAddress?.trim()) return;
+  await api(`/api/v1/chat-rooms/${state.activeRoom.id}/direct-wallet`, { method: 'POST', body: JSON.stringify({ walletAddress: walletAddress.trim() }) });
+  const price = state.agreement?.price || state.activeChatProduct?.price;
+  if (!price) throw new Error('거래금액을 확인할 수 없습니다.');
+  await api(`/api/v1/chat-rooms/${state.activeRoom.id}/agreements`, { method: 'POST', body: JSON.stringify({ price, type: 'direct' }) });
+  alert('직거래로 변경했습니다. 구매자와 판매자가 변경된 조건을 다시 확인해야 합니다.');
+  await Promise.all([openChat(state.activeRoom.id), loadChats()]);
+}
 async function createCurrentTrade() { const result = await api(`/api/v1/agreements/${state.agreement.id}/trades`, { method: 'POST' }); state.trade = result.trade; alert('거래가 생성됐습니다. 내 거래에서 진행상태를 확인하세요.'); await Promise.all([loadMyTrades(), openChat(state.activeRoom.id)]); }
 async function sendMessage(event) { event.preventDefault(); if (!state.activeRoom) return; await api(`/api/v1/chat-rooms/${state.activeRoom.id}/messages`, { method: 'POST', body: JSON.stringify({ content: $('messageText').value }) }); $('messageText').value = ''; await Promise.all([openChat(state.activeRoom.id), loadChats()]); }
 
@@ -1057,7 +1082,7 @@ async function health() {
   }
 }
 
-async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); clearDailySession(); state.user = null; state.sessionToken = null; state.activeRoom = null; state.editingProduct = null; state.mandatoryAnnouncements = []; renderMandatoryAnnouncementGate(); $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); $('notificationBadge').classList.add('hidden'); $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>'; ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
+async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); clearDailySession(); state.user = null; state.sessionToken = null; state.activeRoom = null; state.activeChatProduct = null; state.editingProduct = null; state.mandatoryAnnouncements = []; renderMandatoryAnnouncementGate(); $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); $('notificationBadge').classList.add('hidden'); $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>'; ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
 
 async function submitSuggestion(event) {
   event.preventDefault();

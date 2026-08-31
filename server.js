@@ -60,6 +60,7 @@ const { assertTradingAllowed, createGasDebt, appealGasDebt, mockPayGasDebt, deci
 const { listPopularProducts, setPopularProduct } = require('./lib/popular-products');
 const { createCampaign, endCampaign } = require('./lib/promotion-campaigns');
 const { normalizeWalletAddress } = require('./lib/wallets');
+const { enableChatDirectTrade } = require('./lib/chat-direct');
 const QRCode = require('qrcode');
 
 assertTestnetEnvironment();
@@ -615,12 +616,29 @@ async function handleApi(req, res, url) {
     const userId = requireUserId(req, res); if (!userId) return;
     const room = store.state.chatRooms.find((item) => item.id === match[1]); if (!findOr404(res, room, 'chat room')) return;
     assertParty(room, userId);
+    const product = store.findProduct(room.productId);
+    const agreement = store.state.agreements.find((item) => item.roomId === room.id) || null;
     return sendJson(res, 200, {
       ok: true, room,
       messages: store.state.messages.filter((item) => item.roomId === room.id).slice(-100),
       proposals: store.state.priceProposals.filter((item) => item.roomId === room.id),
-      agreement: store.state.agreements.find((item) => item.roomId === room.id) || null
+      agreement,
+      product: product ? { id: product.id, title: product.title, price: product.price, methods: product.methods, directWalletAvailable: Boolean(product.directWalletAddress) } : null,
+      tradeCreated: Boolean(agreement && store.state.trades.some((item) => item.agreementId === agreement.id))
     });
+  }
+  match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)\/direct-wallet$/);
+  if (method === 'POST' && match) {
+    const userId = requireUserId(req, res); if (!userId) return;
+    if (!requireTradingAllowed(userId, res)) return;
+    const room = store.state.chatRooms.find((item) => item.id === match[1]); if (!findOr404(res, room, 'chat room')) return;
+    const product = store.findProduct(room.productId); if (!findOr404(res, product, 'product')) return;
+    const agreement = store.state.agreements.find((item) => item.roomId === room.id) || null;
+    const existingTrade = agreement ? store.state.trades.find((item) => item.agreementId === agreement.id) : null;
+    const body = await readJson(req);
+    enableChatDirectTrade(product, room, userId, body.walletAddress, existingTrade);
+    store.event('CHAT_DIRECT_WALLET_REGISTERED', room.id); await store.save();
+    return sendJson(res, 200, { ok: true, directWalletAvailable: true, methods: product.methods });
   }
   match = pathname.match(/^\/api\/v1\/chat-rooms\/([^/]+)\/messages$/);
   if (method === 'POST' && match) {
