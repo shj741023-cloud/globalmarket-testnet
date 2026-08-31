@@ -620,11 +620,11 @@ async function openProductDetail(productId, addHistory = true) {
   $('productDetailMethods').innerHTML = product.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('');
   const walletActions = [];
   if (product.methods.includes('direct')) walletActions.push(product.directWalletAvailable
-    ? '<button class="secondary" data-wallet-qr="direct">판매자 지갑 QR</button>'
+    ? '<button class="secondary" data-start-trade="direct">직거래로 진행</button>'
     : '<p class="form-notice">판매자가 직거래 지갑을 아직 등록하지 않았습니다.</p>');
-  if (product.methods.includes('parcel_testnet')) walletActions.push('<button class="secondary" data-wallet-qr="safe">안전거래 사업지갑 QR</button>');
+  if (product.methods.includes('parcel_testnet')) walletActions.push('<button class="primary" data-start-trade="parcel_testnet">안전거래로 진행</button><p class="form-notice">결제 지갑은 Global Market 사업지갑으로 자동 설정됩니다.</p>');
   $('productWalletPayment').innerHTML = walletActions.join('');
-  document.querySelectorAll('[data-wallet-qr]').forEach((button) => button.addEventListener('click', () => showWalletQr(button.dataset.walletQr)));
+  document.querySelectorAll('[data-start-trade]').forEach((button) => button.addEventListener('click', () => chooseTrade(product.id, button.dataset.startTrade).catch((error) => alert(error.message))));
   $('productDetailReviews').innerHTML = '<p class="empty">후기를 불러오는 중입니다.</p>';
   $('toggleFavorite').textContent = product.isFavorite ? '♥ 찜 해제' : '♡ 찜하기';
   $('productDetailPanel').classList.remove('hidden');
@@ -650,6 +650,15 @@ async function showWalletQr(mode) {
   } catch (error) { alert(error.message); }
 }
 
+function updateWalletFields(editing = false) {
+  const directCheckbox = $(editing ? 'editMethodDirect' : 'methodDirect');
+  const field = $(editing ? 'editProductDirectWalletField' : 'productDirectWalletField');
+  const input = $(editing ? 'editProductDirectWallet' : 'productDirectWallet');
+  const show = directCheckbox.checked;
+  field.classList.toggle('hidden', !show);
+  input.required = show;
+}
+
 async function registerProduct(event) {
   event.preventDefault();
   if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.');
@@ -660,21 +669,21 @@ async function registerProduct(event) {
   try {
     $('registerResult').textContent = '사진과 상품 정보를 준비하고 있습니다.';
     const images = [...state.registerImages];
-    const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods, images, directWalletAddress: $('productDirectWallet').value };
+    const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods, images, directWalletAddress: methods.includes('direct') ? $('productDirectWallet').value : '' };
     const { product } = await api('/api/v1/products', { method: 'POST', body: JSON.stringify(body) });
     $('registerResult').textContent = product.status === 'under_review' ? '등록 내용이 검토 대상으로 접수됐습니다. 검토 전에는 공개되지 않습니다.' : '시험 상품이 등록됐습니다.';
-    $('productForm').reset(); state.registerImages = []; renderImageEditor('registerProductImages', 'registerImages'); $('methodDirect').checked = true; $('methodParcel').checked = true;
+    $('productForm').reset(); state.registerImages = []; renderImageEditor('registerProductImages', 'registerImages'); updateWalletFields();
     await Promise.all([loadProducts(), loadMyProducts()]);
   } catch (error) { $('registerResult').textContent = error.message; }
 }
 
-async function chooseTrade(productId) {
+async function chooseTrade(productId, preferredType = null) {
   if (!state.user) { alert('Pi Testnet 로그인 후 거래조건을 제안할 수 있습니다.'); return; }
   const product = state.products.find((item) => item.id === productId);
   if (!product) throw new Error('상품 정보를 다시 불러오세요.');
-  let type;
-  if (product.methods.length === 1) type = product.methods[0];
-  else type = confirm('확인: Testnet 택배 모의 안전거래\n취소: 직거래(플랫폼 안전결제 없음)') ? 'parcel_testnet' : 'direct';
+  let type = preferredType;
+  if (!type && product.methods.length === 1) type = product.methods[0];
+  else if (!type) type = confirm('확인: Testnet 택배 모의 안전거래\n취소: 직거래(플랫폼 안전결제 없음)') ? 'parcel_testnet' : 'direct';
   if (!product.methods.includes(type)) throw new Error('판매자가 허용한 거래방식만 선택할 수 있습니다.');
   const { room } = await api(`/api/v1/products/${productId}/chat-rooms`, { method: 'POST' });
   const { agreement } = await api(`/api/v1/chat-rooms/${room.id}/agreements`, {
@@ -743,6 +752,7 @@ function openProductEdit(product) {
   $('editMethodDirect').checked = product.methods.includes('direct');
   $('editMethodParcel').checked = product.methods.includes('parcel_testnet');
   $('editProductDirectWallet').value = product.directWalletAddress || '';
+  updateWalletFields(true);
   $('editProductImage').value = '';
   $('editProductResult').textContent = '';
   state.editingImages = [...productImages(product)];
@@ -776,7 +786,7 @@ async function saveProductEdit(event) {
       categoryId: $('editProductCategory').value,
       region: $('editProductRegion').value,
       methods,
-      directWalletAddress: $('editProductDirectWallet').value
+      directWalletAddress: methods.includes('direct') ? $('editProductDirectWallet').value : ''
     };
     body.images = [...state.editingImages];
     const { product: updated } = await api(`/api/v1/products/${product.id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -1127,8 +1137,12 @@ $('showAdminGasDebts').addEventListener('click', () => { showAdminSection('gasDe
 $('mockPayCompensations').addEventListener('click', async()=>{if(!confirm('소비자가 확인한 보상금을 합산해 Testnet 모의지급할까요? 플랫폼 가스비 0.01 Pi가 별도 기록됩니다.'))return;try{const {batch}=await adminApi('/api/v1/admin/gas-compensation-payouts/mock-batch',{method:'POST',body:'{}'});$('adminResult').textContent=`${batch.itemCount}건 · ${batch.totalAmount} Test-Pi 모의지급 완료`;await loadAdminAudit();}catch(error){$('adminResult').textContent=error.message;}});
 $('showAdminAudit').addEventListener('click', () => { showAdminSection('audit'); loadAdminAudit().then((count) => { $('adminResult').textContent = `안전하게 정리된 작업기록 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('productForm').addEventListener('submit', registerProduct);
+$('methodDirect').addEventListener('change', () => updateWalletFields());
+$('methodParcel').addEventListener('change', () => updateWalletFields());
 $('productImage').addEventListener('change', () => prepareSelectedImages('productImage', 'registerProductImages', 'registerImages', 'registerResult'));
 $('editProductForm').addEventListener('submit', saveProductEdit);
+$('editMethodDirect').addEventListener('change', () => updateWalletFields(true));
+$('editMethodParcel').addEventListener('change', () => updateWalletFields(true));
 $('editProductImage').addEventListener('change', () => prepareSelectedImages('editProductImage', 'editProductImages', 'editingImages', 'editProductResult'));
 $('cancelProductEdit').addEventListener('click', closeProductEdit);
 $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch((error) => alert(error.message)));
