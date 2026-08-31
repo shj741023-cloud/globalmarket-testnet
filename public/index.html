@@ -91,7 +91,6 @@
     </section>
 
     <section id="productDetailPanel" class="panel hidden">
-      <button id="closeProductDetail" class="secondary" type="button">상세 닫기</button>
       <div id="productDetailGallery" class="product-detail-gallery"></div>
       <p id="productDetailCategory" class="eyebrow"></p>
       <h2 id="productDetailTitle"></h2>
@@ -105,7 +104,10 @@
       <div id="productDetailReviews" class="management-list"></div>
       <button id="toggleFavorite" class="secondary" type="button">♡ 찜하기</button>
       <button id="reportProduct" class="secondary danger-text" type="button">상품 신고</button>
-      <button id="startProductTrade" class="primary" type="button">거래방법 선택</button>
+      <div class="product-detail-actions">
+        <button id="startProductTrade" class="primary" type="button">거래방법 선택</button>
+        <button id="closeProductDetail" class="secondary" type="button">상세 닫기</button>
+      </div>
     </section>
 
     <section id="myPanel" class="hidden">
@@ -239,6 +241,6 @@
   </nav>
 
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-  <script src="/app.js?v=20260831-3"></script>
+  <script src="/app.js?v=20260831-4"></script>
 </body>
 </html>
