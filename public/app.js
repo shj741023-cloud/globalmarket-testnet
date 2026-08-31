@@ -617,7 +617,6 @@ async function openProductDetail(productId, addHistory = true) {
   $('productDetailDescription').textContent = product.description;
   $('productDetailMeta').textContent = `${product.region} · Testnet 기능시험 상품`;
   $('productDetailSeller').innerHTML = `<small>판매자</small><strong>${escapeHtml(product.seller?.username || 'Pi 사용자')}</strong><span>${escapeHtml(product.seller?.trustLevel || 'Bronze')} · 정상거래 ${escapeHtml(product.seller?.normalTradeCount || 0)}건</span>`;
-  $('productDetailMethods').innerHTML = `<small>가능한 거래방법</small><strong>${product.methods.map((method) => method === 'direct' ? '직거래' : 'Testnet 택배 안전거래').join(' · ')}</strong>`;
   $('productWalletPayment').innerHTML = '';
   $('productDetailReviews').innerHTML = '<p class="empty">후기를 불러오는 중입니다.</p>';
   $('toggleFavorite').textContent = product.isFavorite ? '♥ 찜 해제' : '♡ 찜하기';
