@@ -147,6 +147,9 @@
 .card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .card-actions button { padding: 8px 10px; border-radius: 8px; background: #edf2ef; }
 .management-card.unread { border-color: #1f6b4f; background: #f6faed; }
+.management-tabs button.active, .admin-alert button, .management-card > button.primary { background: var(--action-purple); border-color: var(--action-purple); color: #fff; }
+.management-tabs button:not(.active), .management-card > button:not(.primary):not(.danger-text), .card-actions button, .home-shortcuts button, .category-grid button, .image-editor-item button { background: var(--action-purple-soft); border-color: var(--action-purple-line); color: var(--action-purple-dark); }
+.topbar-actions button { color: var(--action-purple-dark); }
 .mandatory-announcement-gate { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 18px; background: linear-gradient(180deg, rgba(92, 55, 135, .25) 0%, rgba(115, 76, 158, .16) 52%, rgba(130, 94, 168, .06) 100%); backdrop-filter: blur(1.5px); }
 .mandatory-announcement-gate.hidden { display: none; }
 .mandatory-announcement-card { display: flex; flex-direction: column; width: min(560px, 100%); height: 66dvh; min-height: 430px; max-height: 680px; padding: 28px; overflow: hidden; border: 1px solid rgba(113, 72, 157, .48); border-radius: 28px; background: linear-gradient(155deg, #fffefe 0%, #faf6ff 100%); box-shadow: 0 24px 70px rgba(75, 43, 108, .22), 0 0 0 6px rgba(236, 223, 250, .38); }
