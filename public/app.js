@@ -4,6 +4,65 @@ const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer:
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const shortReference = (value) => { const text = String(value || ''); return text.length > 18 ? `${text.slice(0, 11)}…${text.slice(-6)}` : text; };
+
+const englishUi = new Map(Object.entries({
+  '필수 확인': 'Required', '중요 공지': 'Important Notice', '내용을 확인했습니다': 'I have read this notice',
+  '실제 결제가 아닙니다': 'This is not a real payment',
+  'Pi Testnet의 Test-Pi를 사용하는 기능시험입니다. 실제 Pi·현금 결제나 판매자 지급을 보장하지 않습니다.': 'This is a feature test using Test-Pi on Pi Testnet. It does not guarantee real Pi, cash payments, or seller payouts.',
+  '개인 간 상품거래 시험판': 'Peer-to-peer marketplace test', '신뢰를 바탕으로': 'Trade safely', '안전하게 거래하세요.': 'with confidence.',
+  '상품 검색은 오른쪽 위 돋보기를 눌러주세요.': 'Tap the search icon at the top right to find products.',
+  'Pi Testnet 로그인': 'Sign in with Pi Testnet', '로그아웃': 'Sign out', '0.01 Test-Pi 연동시험': '0.01 Test-Pi integration test', '상품 새로고침': 'Refresh products',
+  '최근 등록 상품': 'Recently listed', '추천 상품': 'Featured products', '시험 상품': 'Test products', '상품 더 보기': 'Load more',
+  '상세 보기': 'View details', '상세 닫기': 'Close details', '거래방법 선택': 'Choose trade method', '♡ 찜하기': '♡ Favorite', '상품 신고': 'Report product',
+  '판매자': 'Seller', '판매자 후기': 'Seller reviews', '거래 후기': 'Trade reviews', '아직 등록된 판매자 후기가 없습니다.': 'No seller reviews yet.',
+  '홈': 'Home', '검색': 'Search', '등록': 'List', '채팅': 'Chat', '마이': 'My',
+  '상품 등록': 'List a product', '상품명': 'Product name', '상품 설명': 'Description', '가격': 'Price', '카테고리': 'Category', '지역': 'Region',
+  '거래방법': 'Trade method', '직거래': 'In person', '택배 안전거래': 'Secure delivery', '상품 등록하기': 'List product',
+  '내 마켓': 'My Market', '내 상품': 'My products', '찜한 상품': 'Favorites', '내 거래': 'My trades', '새로고침': 'Refresh',
+  '내 채팅': 'My chats', '참여 중인 채팅이 없습니다.': 'You have no active chats.', '메시지 보내기': 'Send message',
+  '문의·건의': 'Questions & Feedback', '문의 유형': 'Type', '제목': 'Subject', '내용': 'Message', '문의 보내기': 'Send inquiry', '내 문의 내역': 'My inquiries',
+  '개인정보처리방침': 'Privacy Policy', '이용약관': 'Terms of Service', '테스트 관리자': 'Test Admin'
+}));
+const koreanUi = new Map([...englishUi].map(([ko, en]) => [en, ko]));
+let uiLanguage = localStorage.getItem('globalMarketLanguage') === 'en' ? 'en' : 'ko';
+let translatingUi = false;
+
+function translateUi(root = document.body) {
+  if (!root || translatingUi) return;
+  translatingUi = true;
+  const translations = uiLanguage === 'en' ? englishUi : koreanUi;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach((node) => {
+    if (node.parentElement?.closest('script,style,#productDetailTitle,#productDetailDescription,#chatMessages,.product-grid')) return;
+    const original = node.nodeValue;
+    const trimmed = original.trim();
+    if (!translations.has(trimmed)) return;
+    node.nodeValue = original.replace(trimmed, translations.get(trimmed));
+  });
+  document.documentElement.lang = uiLanguage;
+  const toggle = $('languageToggle');
+  if (toggle) {
+    toggle.textContent = uiLanguage === 'en' ? '한국어' : 'EN';
+    toggle.setAttribute('aria-label', uiLanguage === 'en' ? '한국어로 변경' : 'Switch to English');
+  }
+  translatingUi = false;
+}
+
+function toggleLanguage() {
+  uiLanguage = uiLanguage === 'ko' ? 'en' : 'ko';
+  localStorage.setItem('globalMarketLanguage', uiLanguage);
+  translateUi();
+}
+
+const uiTranslationObserver = new MutationObserver((records) => {
+  if (translatingUi) return;
+  records.forEach((record) => record.addedNodes.forEach((node) => {
+    if (node.nodeType === Node.ELEMENT_NODE) translateUi(node);
+    else if (node.nodeType === Node.TEXT_NODE) translateUi(node.parentElement);
+  }));
+});
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
 const productImages = (product) => (Array.isArray(product?.images) ? product.images : (product?.imageData ? [product.imageData] : [])).map(safeProductImage).filter(Boolean).slice(0, 3);
 const DAILY_SESSION_KEY = 'gm_testnet_daily_session';
@@ -1135,6 +1194,7 @@ $('navHome').addEventListener('click', showHome);
 $('navSearch').addEventListener('click', showSearch);
 $('headerHome').addEventListener('click', showHome);
 $('headerSearch').addEventListener('click', showSearch);
+$('languageToggle').addEventListener('click', toggleLanguage);
 $('headerNotifications').addEventListener('click', () => {
   if (!state.user) return alert('Pi Testnet 로그인 후 관리팀 알림을 확인할 수 있습니다.');
   showFeaturePanel('announcementPanel');
@@ -1178,4 +1238,6 @@ $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch(
 $('refreshChats').addEventListener('click', () => loadChats().catch((error) => alert(error.message)));
 $('suggestionForm').addEventListener('submit', submitSuggestion);
 $('refreshSuggestions').addEventListener('click', () => loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }));
+translateUi();
+uiTranslationObserver.observe(document.body, { childList: true, subtree: true });
 initializeNavigationHistory(); health(); loadProducts(); loadPopularProducts(); loadCategories(); restoreSession();
