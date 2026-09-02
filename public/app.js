@@ -51,6 +51,7 @@ Object.entries({
   , '검토중': 'Under review', '등록거절': 'Rejected', '예약중': 'Reserved', '결제대기': 'Awaiting payment', '발송대기': 'Awaiting shipment', '배송중': 'Shipping', '배송완료': 'Delivered', '거래완료': 'Completed', '취소': 'Cancelled', '분쟁중': 'In dispute', '환불': 'Refunded', 'Testnet 전액환불': 'Testnet full refund',
   '판매자 과실': 'Seller at fault', '구매자 과실': 'Buyer at fault', '공동 과실': 'Shared fault', '플랫폼 과실': 'Platform at fault'
   , '닫기': 'Close', '관리자 확인': 'Verify administrator', '회원 검색': 'Search users', '회원': 'Users', '상품검토': 'Product review', '추천상품': 'Featured products', '광고·협찬': 'Ads & sponsorships', '운영공지': 'Operations notices', '신고': 'Reports', '분쟁': 'Disputes', '이전 미납기록': 'Previous unpaid records', '작업기록': 'Activity log', 'Testnet 보상금 일괄 지급': 'Batch mock compensation payout'
+  , '수정': 'Edit', '판매 중지': 'Pause sale', '판매재개': 'Resume sale', '등록한 상품이 없습니다.': 'No products listed.', '구매': 'Purchase', '판매': 'Sale', '상세 ›': 'Details ›', 'Testnet 기능시험': 'Testnet feature test'
 }).forEach(([ko, en]) => englishUi.set(ko, en));
 const koreanUi = new Map([...englishUi].map(([ko, en]) => [en, ko]));
 const englishPlaceholders = new Map(Object.entries({
@@ -902,7 +903,7 @@ async function saveProductEdit(event) {
 
 async function loadMyProducts() {
   const { items } = await api('/api/v1/me/products');
-  $('myProducts').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(statusNames[item.status] || item.status)}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><div class="card-actions">${!['reserved', 'sold'].includes(item.status) ? `<button data-edit-product="${escapeHtml(item.id)}">수정</button>` : ''}${['available', 'paused'].includes(item.status) ? `<button data-product-status="${escapeHtml(item.id)}" data-next-status="${item.status === 'available' ? 'paused' : 'available'}">${item.status === 'available' ? '판매중지' : '판매재개'}</button>` : ''}</div></article>`).join('') : '<p class="empty">등록한 상품이 없습니다.</p>';
+  $('myProducts').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(statusNames[item.status] || item.status)}</small><h3 data-user-content>${escapeHtml(item.title)}</h3><p data-user-content>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><div class="card-actions">${!['reserved', 'sold'].includes(item.status) ? `<button data-edit-product="${escapeHtml(item.id)}">수정</button>` : ''}${['available', 'paused'].includes(item.status) ? `<button data-product-status="${escapeHtml(item.id)}" data-next-status="${item.status === 'available' ? 'paused' : 'available'}">${item.status === 'available' ? '판매 중지' : '판매재개'}</button>` : ''}</div></article>`).join('') : '<p class="empty">등록한 상품이 없습니다.</p>';
   document.querySelectorAll('[data-product-status]').forEach((button) => button.addEventListener('click', async () => {
     try { await api(`/api/v1/products/${button.dataset.productStatus}/status`, { method: 'PATCH', body: JSON.stringify({ status: button.dataset.nextStatus }) }); await Promise.all([loadMyProducts(), loadProducts()]); } catch (error) { alert(error.message); }
   }));
@@ -914,13 +915,13 @@ async function loadMyProducts() {
 
 async function loadMyTrades() {
   const { items } = await api('/api/v1/me/trades');
-  $('myTrades').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-trade-detail="${escapeHtml(item.id)}"><div><small>${item.myRole === 'buyer' ? '구매' : '판매'} · ${escapeHtml(statusNames[item.status] || item.status)}</small><h3>${escapeHtml(item.product?.title || (item.purpose === 'pi_checklist' ? 'Testnet 기능시험' : '상품정보 없음'))}</h3><p>${escapeHtml(item.amount)} Test-Pi · ${item.type === 'direct' ? '직거래' : 'Testnet 택배'}</p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">진행한 거래가 없습니다.</p>';
+  $('myTrades').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-trade-detail="${escapeHtml(item.id)}"><div><small><span>${item.myRole === 'buyer' ? '구매' : '판매'}</span> · <span>${escapeHtml(statusNames[item.status] || item.status)}</span></small><h3 data-user-content>${escapeHtml(item.product?.title || (item.purpose === 'pi_checklist' ? 'Testnet 기능시험' : '상품정보 없음'))}</h3><p>${escapeHtml(item.amount)} Test-Pi · <span>${item.type === 'direct' ? '직거래' : 'Testnet 택배'}</span></p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">진행한 거래가 없습니다.</p>';
   document.querySelectorAll('[data-trade-detail]').forEach((button) => button.addEventListener('click', () => openTradeDetail(button.dataset.tradeDetail).catch((error) => alert(error.message))));
 }
 
 async function loadMyFavorites() {
   const { items } = await api('/api/v1/me/favorites');
-  $('myFavorites').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-favorite-product="${escapeHtml(item.id)}"><div><small>${escapeHtml(item.seller?.trustLevel || 'Bronze')} 판매자</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">찜한 상품이 없습니다.</p>';
+  $('myFavorites').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-favorite-product="${escapeHtml(item.id)}"><div><small>${escapeHtml(item.seller?.trustLevel || 'Bronze')} <span>판매자</span></small><h3 data-user-content>${escapeHtml(item.title)}</h3><p data-user-content>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">찜한 상품이 없습니다.</p>';
   document.querySelectorAll('[data-favorite-product]').forEach((button) => button.addEventListener('click', () => {
     const product = items.find((item) => item.id === button.dataset.favoriteProduct);
     if (!product) return;
