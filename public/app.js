@@ -31,10 +31,30 @@ const englishUi = new Map(Object.entries({
   '문의·건의': 'Questions & Feedback', '문의 유형': 'Type', '제목': 'Subject', '내용': 'Message', '문의 보내기': 'Send inquiry', '내 문의 내역': 'My inquiries',
   '개인정보처리방침': 'Privacy Policy', '이용약관': 'Terms of Service', '테스트 관리자': 'Test Admin'
 }));
+Object.entries({
+  '나의 마켓': 'My marketplace', '이전 시험 기록': 'Previous test records', '나의 거래 소식': 'My trade updates', '개인 거래 알림': 'Personal trade notifications', '신고 내역': 'Report history', '내 신고': 'My reports',
+  '관리팀 알림': 'Operations notices', 'Global Market 관리팀이 모든 고객에게 안내하는 이용 주의사항과 편의사항입니다. 개인 거래 알림은 ‘내 마켓’에서 확인하세요.': 'Notices and helpful information from the Global Market operations team. Check My Market for personal trade notifications.', '관리팀 알림을 불러오고 있습니다.': 'Loading operations notices.',
+  '테스트 상품 판매': 'Test product listing', '개인이 소유한 사용하지 않는 실물 상품을 등록할 수 있습니다. 제한품목으로 의심되는 내용은 공개되지 않고 검토 상태로 접수됩니다.': 'You may list unused physical products that you own. Suspected restricted items are submitted for review and are not published.',
+  '상품 사진(선택·최대 3장)': 'Product photos (optional, up to 3)', '사진은 선택 즉시 자동으로 축소됩니다. 첫 번째 사진이 대표사진입니다.': 'Photos are resized automatically. The first photo is the cover image.', '가격(Test-Pi)': 'Price (Test-Pi)', '거래 지역': 'Trade region',
+  '직거래(당사자 책임)': 'In person (participants responsible)', '구매자가 결제한 이후에는 거래방법을 변경할 수 없어요.': 'The trade method cannot be changed after the buyer pays.', '직거래 정산 지갑주소': 'Direct-trade wallet address', '직거래 선택 시에만 필요합니다. 안전거래·택배거래는 Global Market 사업지갑으로 자동 설정됩니다.': 'Required only for in-person trades. Secure delivery uses the Global Market wallet automatically.', '시험 상품 등록': 'List test product',
+  '테스트 상품 관리': 'Test product management', '상품 정보 수정': 'Edit product', '수정 취소': 'Cancel editing', '새 사진을 선택하지 않으면 현재 사진이 유지됩니다. 제한품목으로 의심되는 내용은 검토 상태로 전환될 수 있습니다.': 'Current photos remain unless new photos are selected. Suspected restricted items may be moved to review.', '사진 교체(선택·최대 3장)': 'Replace photos (optional, up to 3)', '새 사진을 선택하면 기존 사진 전체가 교체됩니다.': 'Selecting new photos replaces all current photos.', '수정 내용 저장': 'Save changes',
+  '나의 대화': 'My conversations', '거래 채팅': 'Trade chat', '전송': 'Send', '거래 기능시험': 'Trade feature test', '거래 시험': 'Trade test', 'Test-Pi 결제 준비': 'Prepare Test-Pi payment', '모의 구매확정': 'Mock purchase confirmation',
+  '문의나 개선 의견을 남기면 처리상태와 관리자 답변을 이곳에서 확인할 수 있습니다.': 'Submit a question or suggestion and check its status and the administrator reply here.', '이용 문의': 'General question', '건의사항': 'Suggestion', '결제': 'Payment', '거래': 'Trade', '신고·분쟁': 'Report or dispute', '로그인 후 내 문의 내역을 확인할 수 있습니다.': 'Sign in to view your inquiries.',
+  '거래상태': 'Trade status', '거래금액': 'Trade amount', '거래방식': 'Trade method', '정산보류': 'Settlement hold', '보류중': 'On hold', '없음': 'None', '구매 거래': 'Purchase', '판매 거래': 'Sale',
+  'Testnet 정산상태': 'Testnet settlement status', '최소 정산금액 대기': 'Waiting for minimum payout', '모의정산 완료': 'Mock settlement complete', '판매자 정산 대기 잔액': 'Seller pending balance', '판매자 모의정산액': 'Seller mock settlement',
+  'Testnet 환불상태': 'Testnet refund status', '부분 모의환불 완료': 'Partial mock refund complete', '전액 모의환불 완료': 'Full mock refund complete', '관리자 과실 판정': 'Administrator fault decision', '정책 판정 필요': 'Policy decision required', '구매자 환불 예정액': 'Expected buyer refund', '구매자 환불 송금 가스비': 'Buyer refund transfer fee', '판매자 정산 송금 가스비': 'Seller settlement transfer fee',
+  '판매자 직거래 지갑': 'Seller direct-trade wallet', '지갑주소 복사': 'Copy wallet address', '직거래 송금과 상품 확인은 당사자 책임이며 플랫폼 안전거래·환불 보호가 적용되지 않습니다.': 'The participants are responsible for direct payment and product inspection. Platform secure-trade and refund protection do not apply.',
+  'Test-Pi 결제': 'Pay with Test-Pi', 'Testnet 발송 처리': 'Mock shipment', 'Testnet 배송완료 처리': 'Mock delivery complete', 'Testnet 정산 처리': 'Process mock settlement', '운송장 등록': 'Add tracking number', '구매확정': 'Confirm purchase', '분쟁 접수': 'Open dispute', '직거래 약속 만들기': 'Create meeting plan', '내 거래완료 표시': 'Mark my trade complete', '직거래 취소': 'Cancel in-person trade', '후기 작성': 'Write review', '거래 신고': 'Report trade',
+  '현재 사용자가 처리할 다음 작업이 없습니다.': 'There are no actions available for you now.', '아직 제안된 거래조건이 없습니다.': 'No trade terms have been proposed yet.', '이 조건 확인': 'Confirm these terms', '거래 시작': 'Start trade', '직거래 지갑 변경': 'Change direct-trade wallet', '직거래로 변경·지갑 등록': 'Switch to in-person and add wallet', '거래가 생성되어 거래방법을 변경할 수 없습니다.': 'The trade method cannot be changed after a trade is created.',
+  '구매자': 'Buyer', '확인': 'Confirmed', '대기': 'Waiting', '첫 메시지를 보내보세요.': 'Send the first message.', '구매 문의': 'Buying inquiry', '판매 문의': 'Selling inquiry', '상품정보 없음': 'Product unavailable', '새 채팅방': 'New chat', '열기 ›': 'Open ›',
+  '신뢰등급': 'Trust level', '신뢰점수': 'Trust score', '정상거래': 'Completed trades', '다음등급': 'Next level', '최고등급': 'Highest level', '진행한 거래가 없습니다.': 'No trade history.', '찜한 상품이 없습니다.': 'No favorite products.', '판매중': 'For sale', '판매중지': 'Paused', '판매완료': 'Sold'
+  , '검토중': 'Under review', '등록거절': 'Rejected', '예약중': 'Reserved', '결제대기': 'Awaiting payment', '발송대기': 'Awaiting shipment', '배송중': 'Shipping', '배송완료': 'Delivered', '거래완료': 'Completed', '취소': 'Cancelled', '분쟁중': 'In dispute', '환불': 'Refunded', 'Testnet 전액환불': 'Testnet full refund',
+  '판매자 과실': 'Seller at fault', '구매자 과실': 'Buyer at fault', '공동 과실': 'Shared fault', '플랫폼 과실': 'Platform at fault'
+}).forEach(([ko, en]) => englishUi.set(ko, en));
 const koreanUi = new Map([...englishUi].map(([ko, en]) => [en, ko]));
 const englishPlaceholders = new Map(Object.entries({
   '상품명 또는 설명 검색': 'Search product name or description', '최저가': 'Minimum price', '최고가': 'Maximum price',
-  '상품명을 입력하세요.': 'Enter a product name.', '지역을 입력하세요.': 'Enter a region.', '문의 제목을 입력하세요.': 'Enter an inquiry subject.'
+  '상품명을 입력하세요.': 'Enter a product name.', '지역을 입력하세요.': 'Enter a region.', '문의 제목을 입력하세요.': 'Enter an inquiry subject.', '예: 서울 강남구': 'Example: Gangnam-gu, Seoul', 'G로 시작하는 56자리 Pi 지갑주소': '56-character Pi wallet address starting with G', '메시지를 입력하세요': 'Enter a message', '건의 내용을 5자 이상 입력하세요.': 'Enter at least 5 characters.'
 }));
 const koreanPlaceholders = new Map([...englishPlaceholders].map(([ko, en]) => [en, ko]));
 let uiLanguage = localStorage.getItem('globalMarketLanguage') === 'en' ? 'en' : 'ko';
@@ -1089,7 +1109,7 @@ async function openChat(roomId) {
   const agreement = data.agreement;
   const isSeller = data.room.sellerId === state.user.id;
   const directControl = !data.tradeCreated && isSeller ? `<button id="switchAgreementDirect" class="secondary">${data.product?.directWalletAvailable ? '직거래 지갑 변경' : '직거래로 변경·지갑 등록'}</button>` : '';
-  $('agreementBox').innerHTML = agreement ? `<p><strong>${escapeHtml(agreement.price)} Test-Pi · ${agreement.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p>구매자 ${agreement.buyerConfirmed ? '확인' : '대기'} · 판매자 ${agreement.sellerConfirmed ? '확인' : '대기'}</p>${data.tradeCreated ? '<p class="form-notice">거래가 생성되어 거래방법을 변경할 수 없습니다.</p>' : `<button id="confirmAgreement" class="primary">이 조건 확인</button>${agreement.buyerConfirmed && agreement.sellerConfirmed ? '<button id="createTrade" class="secondary">거래 시작</button>' : ''}${directControl}`}` : `<p>아직 제안된 거래조건이 없습니다.</p>${directControl}`;
+  $('agreementBox').innerHTML = agreement ? `<p><strong>${escapeHtml(agreement.price)} Test-Pi · <span>${agreement.type === 'direct' ? '직거래' : 'Testnet 택배'}</span></strong></p><p><span>구매자</span> <span>${agreement.buyerConfirmed ? '확인' : '대기'}</span> · <span>판매자</span> <span>${agreement.sellerConfirmed ? '확인' : '대기'}</span></p>${data.tradeCreated ? '<p class="form-notice">거래가 생성되어 거래방법을 변경할 수 없습니다.</p>' : `<button id="confirmAgreement" class="primary">이 조건 확인</button>${agreement.buyerConfirmed && agreement.sellerConfirmed ? '<button id="createTrade" class="secondary">거래 시작</button>' : ''}${directControl}`}` : `<p>아직 제안된 거래조건이 없습니다.</p>${directControl}`;
   $('chatDetail').classList.remove('hidden');
   $('confirmAgreement')?.addEventListener('click', () => confirmCurrentAgreement().catch((error) => alert(error.message)));
   $('createTrade')?.addEventListener('click', () => createCurrentTrade().catch((error) => alert(error.message)));
