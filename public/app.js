@@ -44,8 +44,10 @@ function translateUi(root = document.body) {
   document.documentElement.lang = uiLanguage;
   const toggle = $('languageToggle');
   if (toggle) {
-    toggle.textContent = uiLanguage === 'en' ? '한국어' : 'EN';
-    toggle.setAttribute('aria-label', uiLanguage === 'en' ? '한국어로 변경' : 'Switch to English');
+    const toggleText = uiLanguage === 'en' ? '한국어' : 'EN';
+    const toggleLabel = uiLanguage === 'en' ? '한국어로 변경' : 'Switch to English';
+    if (toggle.textContent !== toggleText) toggle.textContent = toggleText;
+    if (toggle.getAttribute('aria-label') !== toggleLabel) toggle.setAttribute('aria-label', toggleLabel);
   }
   translatingUi = false;
 }
