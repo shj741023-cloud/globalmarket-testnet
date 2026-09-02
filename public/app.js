@@ -14,7 +14,14 @@ const englishUi = new Map(Object.entries({
   'Pi Testnet 로그인': 'Sign in with Pi Testnet', '로그아웃': 'Sign out', '0.01 Test-Pi 연동시험': '0.01 Test-Pi integration test', '상품 새로고침': 'Refresh products',
   '최근 등록 상품': 'Recently listed', '추천 상품': 'Featured products', '시험 상품': 'Test products', '상품 더 보기': 'Load more',
   '상세 보기': 'View details', '상세 닫기': 'Close details', '거래방법 선택': 'Choose trade method', '♡ 찜하기': '♡ Favorite', '상품 신고': 'Report product',
-  '판매자': 'Seller', '판매자 후기': 'Seller reviews', '거래 후기': 'Trade reviews', '아직 등록된 판매자 후기가 없습니다.': 'No seller reviews yet.',
+  '♥ 찜 해제': '♥ Remove favorite', '판매자': 'Seller', '판매자 후기': 'Seller reviews', '거래 후기': 'Trade reviews', '후기를 불러오는 중입니다.': 'Loading reviews.', '아직 등록된 판매자 후기가 없습니다.': 'No seller reviews yet.',
+  '카테고리': 'Categories', '선택한 카테고리': 'Selected category', '전체 상품': 'All products', '필터': 'Filters', '상품 찾기': 'Find products', '상품 검색': 'Product search', '카테고리 상품': 'Category products', '상품 목록': 'Product list',
+  '전체 카테고리': 'All categories', '카테고리 선택': 'Select category', '모든 거래방식': 'All trade methods', '최신순': 'Newest', '낮은 가격순': 'Lowest price', '높은 가격순': 'Highest price', '초기화': 'Reset',
+  '디지털기기': 'Digital devices', '생활가전': 'Home appliances', '가구·인테리어': 'Furniture & interior', '의류·패션잡화': 'Clothing & fashion', '스포츠·레저': 'Sports & leisure', '취미·수집': 'Hobbies & collectibles', '도서·음반': 'Books & music', '유아용품': 'Baby products', '자동차용품': 'Vehicle accessories', '기타 실물 중고품': 'Other physical goods',
+  '직거래': 'In person', 'Testnet 택배': 'Testnet delivery', '실물 상품': 'Physical product', 'Pi 사용자': 'Pi user', '긍정': 'Positive', '보통': 'Neutral', '아쉬움': 'Negative', '내용 없음': 'No comment',
+  '기능시험용 가상 상품': 'Virtual test product', 'Testnet 기능시험 상품': 'Testnet feature-test product', '정상거래': 'Completed trades', '건': '',
+  '어떻게 거래할까요?': 'How would you like to trade?', '안전거래 결제는 Global Market 사업지갑으로 자동 연결됩니다.': 'Secure-trade payment connects automatically to the Global Market wallet.', '직거래 채팅 시작': 'Start in-person chat', 'Testnet 택배 안전거래': 'Testnet secure delivery',
+  '조건에 맞는 상품이 없습니다. 검색조건을 바꾸거나 초기화를 눌러보세요.': 'No products match these conditions. Change the filters or tap Reset.',
   '홈': 'Home', '검색': 'Search', '등록': 'List', '채팅': 'Chat', '마이': 'My',
   '상품 등록': 'List a product', '상품명': 'Product name', '상품 설명': 'Description', '가격': 'Price', '카테고리': 'Category', '지역': 'Region',
   '거래방법': 'Trade method', '직거래': 'In person', '택배 안전거래': 'Secure delivery', '상품 등록하기': 'List product',
@@ -24,6 +31,11 @@ const englishUi = new Map(Object.entries({
   '개인정보처리방침': 'Privacy Policy', '이용약관': 'Terms of Service', '테스트 관리자': 'Test Admin'
 }));
 const koreanUi = new Map([...englishUi].map(([ko, en]) => [en, ko]));
+const englishPlaceholders = new Map(Object.entries({
+  '상품명 또는 설명 검색': 'Search product name or description', '최저가': 'Minimum price', '최고가': 'Maximum price',
+  '상품명을 입력하세요.': 'Enter a product name.', '지역을 입력하세요.': 'Enter a region.', '문의 제목을 입력하세요.': 'Enter an inquiry subject.'
+}));
+const koreanPlaceholders = new Map([...englishPlaceholders].map(([ko, en]) => [en, ko]));
 let uiLanguage = localStorage.getItem('globalMarketLanguage') === 'en' ? 'en' : 'ko';
 let translatingUi = false;
 
@@ -35,11 +47,16 @@ function translateUi(root = document.body) {
   const nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);
   nodes.forEach((node) => {
-    if (node.parentElement?.closest('script,style,#productDetailTitle,#productDetailDescription,#chatMessages,.product-grid')) return;
+    if (node.parentElement?.closest('script,style,#productDetailTitle,#productDetailDescription,#chatMessages,.product h3,[data-user-content]')) return;
     const original = node.nodeValue;
     const trimmed = original.trim();
     if (!translations.has(trimmed)) return;
     node.nodeValue = original.replace(trimmed, translations.get(trimmed));
+  });
+  const placeholderTranslations = uiLanguage === 'en' ? englishPlaceholders : koreanPlaceholders;
+  root.querySelectorAll?.('[placeholder]').forEach((element) => {
+    const translated = placeholderTranslations.get(element.getAttribute('placeholder'));
+    if (translated) element.setAttribute('placeholder', translated);
   });
   document.documentElement.lang = uiLanguage;
   const toggle = $('languageToggle');
@@ -569,8 +586,8 @@ async function loadProducts(query = '', append = false) {
     <article class="product">
       <div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
       <h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p>
-      <p class="meta">${escapeHtml(item.region)} · 기능시험용 가상 상품</p>
-      <p class="seller-line">${escapeHtml(item.seller?.username || 'Pi 사용자')} · ${escapeHtml(item.seller?.trustLevel || 'Bronze')}</p>
+      <p class="meta"><span data-user-content>${escapeHtml(item.region)}</span> · <span>기능시험용 가상 상품</span></p>
+      <p class="seller-line"><span data-user-content>${escapeHtml(item.seller?.username || 'Pi 사용자')}</span> · ${escapeHtml(item.seller?.trustLevel || 'Bronze')}</p>
       <div class="method-row">${item.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('')}</div>
       <button data-product="${item.id}">상세 보기</button>
     </article>`).join('') : '<p class="empty product-empty">조건에 맞는 상품이 없습니다. 검색조건을 바꾸거나 초기화를 눌러보세요.</p>';
@@ -676,8 +693,8 @@ async function openProductDetail(productId, addHistory = true) {
   $('productDetailTitle').textContent = product.title;
   $('productDetailPrice').textContent = `${product.price} Test-Pi`;
   $('productDetailDescription').textContent = product.description;
-  $('productDetailMeta').textContent = `${product.region} · Testnet 기능시험 상품`;
-  $('productDetailSeller').innerHTML = `<small>판매자</small><strong>${escapeHtml(product.seller?.username || 'Pi 사용자')}</strong><span>${escapeHtml(product.seller?.trustLevel || 'Bronze')} · 정상거래 ${escapeHtml(product.seller?.normalTradeCount || 0)}건</span>`;
+  $('productDetailMeta').innerHTML = `<span data-user-content>${escapeHtml(product.region)}</span> · <span>Testnet 기능시험 상품</span>`;
+  $('productDetailSeller').innerHTML = `<small>판매자</small><strong data-user-content>${escapeHtml(product.seller?.username || 'Pi 사용자')}</strong><span>${escapeHtml(product.seller?.trustLevel || 'Bronze')} · <span>정상거래</span> ${escapeHtml(product.seller?.normalTradeCount || 0)}<span>건</span></span>`;
   $('productWalletPayment').innerHTML = '';
   $('productDetailReviews').innerHTML = '<p class="empty">후기를 불러오는 중입니다.</p>';
   $('toggleFavorite').textContent = product.isFavorite ? '♥ 찜 해제' : '♡ 찜하기';
@@ -686,7 +703,7 @@ async function openProductDetail(productId, addHistory = true) {
   try {
     const { items } = await api(`/api/v1/products/${encodeURIComponent(product.id)}/reviews`);
     const sentimentNames = { positive: '긍정', neutral: '보통', negative: '아쉬움' };
-    $('productDetailReviews').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(sentimentNames[item.sentiment] || item.sentiment)} · ${escapeHtml(item.writerName)}</small><p>${escapeHtml(item.comment || '내용 없음')}</p></div></article>`).join('') : '<p class="empty">아직 등록된 판매자 후기가 없습니다.</p>';
+    $('productDetailReviews').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(sentimentNames[item.sentiment] || item.sentiment)} · <span data-user-content>${escapeHtml(item.writerName)}</span></small><p data-user-content>${escapeHtml(item.comment || '내용 없음')}</p></div></article>`).join('') : '<p class="empty">아직 등록된 판매자 후기가 없습니다.</p>';
   } catch (error) { $('productDetailReviews').innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`; }
 }
 
