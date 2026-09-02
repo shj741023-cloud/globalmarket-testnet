@@ -19,7 +19,7 @@ const englishUi = new Map(Object.entries({
   '전체 카테고리': 'All categories', '카테고리 선택': 'Select category', '모든 거래방식': 'All trade methods', '최신순': 'Newest', '낮은 가격순': 'Lowest price', '높은 가격순': 'Highest price', '초기화': 'Reset',
   '디지털기기': 'Digital devices', '생활가전': 'Home appliances', '가구·인테리어': 'Furniture & interior', '의류·패션잡화': 'Clothing & fashion', '스포츠·레저': 'Sports & leisure', '취미·수집': 'Hobbies & collectibles', '도서·음반': 'Books & music', '유아용품': 'Baby products', '자동차용품': 'Vehicle accessories', '기타 실물 중고품': 'Other physical goods',
   '직거래': 'In person', 'Testnet 택배': 'Testnet delivery', '실물 상품': 'Physical product', 'Pi 사용자': 'Pi user', '긍정': 'Positive', '보통': 'Neutral', '아쉬움': 'Negative', '내용 없음': 'No comment',
-  '기능시험용 가상 상품': 'Virtual test product', 'Testnet 기능시험 상품': 'Testnet feature-test product', '정상거래': 'Completed trades', '건': '',
+  '기능시험용 가상 상품': 'Virtual test product', 'Testnet 기능시험 상품': 'Testnet feature-test product', '정상거래': 'Completed trades',
   '어떻게 거래할까요?': 'How would you like to trade?', '안전거래 결제는 Global Market 사업지갑으로 자동 연결됩니다.': 'Secure-trade payment connects automatically to the Global Market wallet.', '직거래 채팅 시작': 'Start in-person chat', 'Testnet 택배 안전거래': 'Testnet secure delivery',
   '조건에 맞는 상품이 없습니다. 검색조건을 바꾸거나 초기화를 눌러보세요.': 'No products match these conditions. Change the filters or tap Reset.',
   '홈': 'Home', '검색': 'Search', '등록': 'List', '채팅': 'Chat', '마이': 'My',
