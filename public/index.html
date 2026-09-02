@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#132a22">
   <title>Global Market Testnet</title>
-  <link rel="stylesheet" href="/styles.css?v=20260831-1">
+  <link rel="stylesheet" href="/styles.css?v=20260902-2">
   <link rel="stylesheet" href="/payment.css?v=20260820-3">
   <link rel="stylesheet" href="/policy.css">
   <link rel="stylesheet" href="/management.css?v=20260831-2">
@@ -137,7 +137,7 @@
       <form id="productForm" class="product-form">
         <label>상품명<input id="productTitle" name="title" minlength="2" maxlength="80" required></label>
         <label>상품 설명<textarea id="productDescription" name="description" minlength="10" maxlength="2000" placeholder="구매 시기, 사용 기간, 상품 상태, 구성품, 흠집·고장 여부, 거래 희망 지역을 입력해 주세요. 카카오톡 아이디 첨부 시 게시물 삭제 및 이용 제재 처리될 수 있어요." required></textarea></label>
-        <label>상품 사진(선택·최대 3장)<input id="productImage" name="image" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>사진은 선택 즉시 자동으로 축소됩니다. 첫 번째 사진이 대표사진입니다.</small></label>
+        <label>상품 사진(선택·최대 3장)<span class="file-picker-button">사진 선택</span><input id="productImage" class="file-picker-input" name="image" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>사진은 선택 즉시 자동으로 축소됩니다. 첫 번째 사진이 대표사진입니다.</small></label>
         <div id="registerProductImages" class="image-editor" aria-live="polite"></div>
         <div class="form-row"><label>가격(Test-Pi)<input id="productPrice" name="price" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="productCategory" name="categoryId" required></select></label></div>
         <label>거래 지역<input id="productRegion" name="region" maxlength="60" placeholder="예: 서울 강남구"></label>
@@ -156,7 +156,7 @@
       <form id="editProductForm" class="product-form">
         <label>상품명<input id="editProductTitle" minlength="2" maxlength="80" required></label>
         <label>상품 설명<textarea id="editProductDescription" minlength="10" maxlength="2000" placeholder="구매 시기, 사용 기간, 상품 상태, 구성품, 흠집·고장 여부, 거래 희망 지역을 입력해 주세요. 카카오톡 아이디 첨부 시 게시물 삭제 및 이용 제재 처리될 수 있어요." required></textarea></label>
-        <label>사진 교체(선택·최대 3장)<input id="editProductImage" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>새 사진을 선택하면 기존 사진 전체가 교체됩니다.</small></label>
+        <label>사진 교체(선택·최대 3장)<span class="file-picker-button">사진 선택</span><input id="editProductImage" class="file-picker-input" type="file" accept="image/jpeg,image/png,image/webp" multiple><small>새 사진을 선택하면 기존 사진 전체가 교체됩니다.</small></label>
         <div class="form-row"><label>가격(Test-Pi)<input id="editProductPrice" type="number" min="0.000001" step="any" required></label><label>카테고리<select id="editProductCategory" required></select></label></div>
         <label>거래 지역<input id="editProductRegion" maxlength="60"></label>
         <fieldset><legend>거래방법</legend><label class="check"><input id="editMethodDirect" type="checkbox"> 직거래(당사자 책임)</label><label class="check"><input id="editMethodParcel" type="checkbox"> Testnet 택배</label></fieldset>
@@ -241,6 +241,6 @@
   </nav>
 
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-  <script src="/app.js?v=20260902-6"></script>
+  <script src="/app.js?v=20260902-7"></script>
 </body>
 </html>
