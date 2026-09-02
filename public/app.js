@@ -23,6 +23,7 @@ const englishUi = new Map(Object.entries({
   '어떻게 거래할까요?': 'How would you like to trade?', '안전거래 결제는 Global Market 사업지갑으로 자동 연결됩니다.': 'Secure-trade payment connects automatically to the Global Market wallet.', '직거래 채팅 시작': 'Start in-person chat', 'Testnet 택배 안전거래': 'Testnet secure delivery',
   '조건에 맞는 상품이 없습니다. 검색조건을 바꾸거나 초기화를 눌러보세요.': 'No products match these conditions. Change the filters or tap Reset.',
   '홈': 'Home', '검색': 'Search', '등록': 'List', '채팅': 'Chat', '마이': 'My',
+  '＋ 상품 등록': '＋ List a product', '💬 문의·건의': '💬 Questions & Feedback', '♡ 내 마켓': '♡ My Market',
   '상품 등록': 'List a product', '상품명': 'Product name', '상품 설명': 'Description', '가격': 'Price', '카테고리': 'Category', '지역': 'Region',
   '거래방법': 'Trade method', '직거래': 'In person', '택배 안전거래': 'Secure delivery', '상품 등록하기': 'List product',
   '내 마켓': 'My Market', '내 상품': 'My products', '찜한 상품': 'Favorites', '내 거래': 'My trades', '새로고침': 'Refresh',
