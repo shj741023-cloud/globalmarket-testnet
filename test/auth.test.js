@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { SESSION_TTL_MS, parseCookies, tokenHash, createSession, pruneSessions, enforceSessionLimit, sessionUserId, sessionUserIdFromToken, revokeSession, sessionCookie } = require('../lib/auth');
+const { SESSION_TTL_MS, parseCookies, tokenHash, createSession, pruneSessions, enforceSessionLimit, sessionUserId, sessionUserIdFromToken, revokeSession, revokeSessionToken, sessionCookie } = require('../lib/auth');
 
 test('쿠키 문자열을 안전하게 분리한다', () => {
   assert.deepEqual(parseCookies('a=1; gm_testnet_session=hello%20world'), { a: '1', gm_testnet_session: 'hello world' });
@@ -14,6 +14,13 @@ test('세션 원문 대신 해시만 저장한다', () => {
   assert.notEqual(result.session.tokenHash, result.token);
   assert.equal(result.session.tokenHash, tokenHash(result.token));
   assert.equal(new Date(result.session.expiresAt).getTime() - new Date(result.session.createdAt).getTime(), SESSION_TTL_MS);
+});
+
+test('Bearer 세션 갱신 시 기존 토큰을 폐기할 수 있다', () => {
+  const state = { sessions: [] };
+  const { token } = createSession(state, 'user_1', new Date('2026-10-17T00:00:00Z'));
+  assert.equal(revokeSessionToken(state, token, new Date('2026-10-17T01:00:00Z')), true);
+  assert.equal(sessionUserIdFromToken(state, token, new Date('2026-10-17T01:00:01Z')), null);
 });
 
 test('정상 쿠키 세션에서 사용자 ID를 찾는다', () => {

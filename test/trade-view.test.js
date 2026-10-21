@@ -22,13 +22,15 @@ test('구매·판매 역할과 상태·거래방식을 함께 필터링한다', 
 test('거래 상세에 상품·결제·배송·분쟁 정보를 묶어 표시한다', () => {
   const trade = trades[1];
   const state = {
-    products: [{ id: 'p2', title: '카메라' }], payments: [{ id: 'pay', tradeId: trade.id }],
+    users: [], trustProfiles: [], products: [{ id: 'p2', title: '카메라', sellerId: 'me', directWalletAddress: `G${'A'.repeat(55)}` }], payments: [{ id: 'pay', tradeId: trade.id }],
     shipments: [{ id: 'ship', tradeId: trade.id }], directTradeRecords: [], settlements: [], refunds: [],
     disputes: [{ id: 'dispute', tradeId: trade.id }], reviews: []
   };
   const result = tradeSnapshot(state, trade, 'me');
   assert.equal(result.trade.myRole, 'seller');
   assert.equal(result.product.title, '카메라');
+  assert.equal(result.product.directWalletAddress, undefined);
+  assert.equal(result.product.directWalletAvailable, true);
   assert.equal(result.payment.id, 'pay');
   assert.equal(result.shipment.id, 'ship');
   assert.equal(result.disputes.length, 1);

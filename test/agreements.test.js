@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createProposal, respondProposal, createOrUpdateAgreement, confirmAgreement, tradeFromAgreement } = require('../lib/agreements');
+const { createProposal, respondProposal, cancelProposal, createOrUpdateAgreement, confirmAgreement, tradeFromAgreement, assertTradeStarter } = require('../lib/agreements');
 
 const room = { id: 'r1', sellerId: 'seller', buyerId: 'buyer' };
 const product = { id: 'p1', methods: ['direct', 'parcel_testnet'] };
@@ -17,6 +17,13 @@ test('가격제안 수락·거절은 상대방만 할 수 있다', () => {
   const proposal = createProposal(room, { id: 'x', proposerId: 'buyer', price: 10 });
   assert.throws(() => respondProposal(proposal, 'buyer', 'accepted'), /recipient/);
   assert.equal(respondProposal(proposal, 'seller', 'accepted').proposal.status, 'accepted');
+});
+
+test('대기 중 가격제안은 제안자만 취소할 수 있고 반복 요청은 안전하다', () => {
+  const proposal = createProposal(room, { id: 'x', proposerId: 'buyer', price: 10 });
+  assert.throws(() => cancelProposal(proposal, 'seller'), /proposer/);
+  assert.equal(cancelProposal(proposal, 'buyer').proposal.status, 'cancelled');
+  assert.equal(cancelProposal(proposal, 'buyer').idempotent, true);
 });
 
 test('거래 합의는 허용된 방식과 양수 가격만 사용한다', () => {
@@ -62,4 +69,12 @@ test('같은 합의로 거래를 중복 생성하지 않는다', () => {
   const second = tradeFromAgreement(agreement, first, { id: 't2' });
   assert.equal(second.idempotent, true);
   assert.equal(second.trade.id, 't');
+});
+
+test('직거래는 지갑주소를 확인할 구매자만 시작할 수 있다', () => {
+  const direct = { sellerId: 'seller', buyerId: 'buyer', type: 'direct' };
+  assert.doesNotThrow(() => assertTradeStarter(direct, 'buyer'));
+  assert.throws(() => assertTradeStarter(direct, 'seller'), (error) => error.code === 'DIRECT_BUYER_REQUIRED');
+  assert.throws(() => assertTradeStarter(direct, 'other'), (error) => error.code === 'AGREEMENT_PARTY_REQUIRED');
+  assert.doesNotThrow(() => assertTradeStarter({ ...direct, type: 'parcel_testnet' }, 'seller'));
 });

@@ -23,3 +23,8 @@ test('공개 상품에서 내부 판매자 ID와 검토 사유를 제거한다',
 test('신규 판매자는 기본 Bronze 공개정보를 사용한다', () => {
   assert.deepEqual(publicSeller({ users: [], trustProfiles: [] }, 'missing'), { username: 'Pi 사용자', trustLevel: 'Bronze', normalTradeCount: 0 });
 });
+
+test('공개 판매자 이름은 앱 닉네임을 우선 사용한다', () => {
+  const state = { users: [{ id: 'seller', username: 'pi_user', nickname: '마켓닉네임' }], trustProfiles: [] };
+  assert.equal(publicSeller(state, 'seller').username, '마켓닉네임');
+});

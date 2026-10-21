@@ -1,171 +1,14 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, adminKey: null, adminAlertTimer: null, homeMode: true, products: [], popularProducts: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null, activeChatProduct: null, mandatoryAnnouncements: [] };
+const state = { user: null, sessionToken: null, onboardingRequired: false, adminKey: null, adminAlertTimer: null, products: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null, activeDirectWalletAddress: null, pendingPiPayments: [], liveUpdateTimer: null, mandatoryAnnouncements: [] };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
-const shortReference = (value) => { const text = String(value || ''); return text.length > 18 ? `${text.slice(0, 11)}…${text.slice(-6)}` : text; };
-
-const englishUi = new Map(Object.entries({
-  '필수 확인': 'Required', '중요 공지': 'Important Notice', '내용을 확인했습니다': 'I have read this notice',
-  '실제 결제가 아닙니다': 'This is not a real payment',
-  'Pi Testnet의 Test-Pi를 사용하는 기능시험입니다. 실제 Pi·현금 결제나 판매자 지급을 보장하지 않습니다.': 'This is a feature test using Test-Pi on Pi Testnet. It does not guarantee real Pi, cash payments, or seller payouts.',
-  '개인 간 상품거래 시험판': 'Peer-to-peer marketplace test', '신뢰를 바탕으로': 'Trade safely', '안전하게 거래하세요.': 'with confidence.',
-  '상품 검색은 오른쪽 위 돋보기를 눌러주세요.': 'Tap the search icon at the top right to find products.',
-  'Pi Testnet 로그인': 'Sign in with Pi Testnet', '로그아웃': 'Sign out', '0.01 Test-Pi 연동시험': '0.01 Test-Pi integration test', '상품 새로고침': 'Refresh products',
-  '최근 등록 상품': 'Recently listed', '추천 상품': 'Featured products', '시험 상품': 'Test products', '상품 더 보기': 'Load more',
-  '상세 보기': 'View details', '상세 닫기': 'Close details', '거래방법 선택': 'Choose trade method', '♡ 찜하기': '♡ Favorite', '상품 신고': 'Report product',
-  '♥ 찜 해제': '♥ Remove favorite', '판매자': 'Seller', '판매자 후기': 'Seller reviews', '거래 후기': 'Trade reviews', '후기를 불러오는 중입니다.': 'Loading reviews.', '아직 등록된 판매자 후기가 없습니다.': 'No seller reviews yet.',
-  '카테고리': 'Categories', '선택한 카테고리': 'Selected category', '전체 상품': 'All products', '필터': 'Filters', '상품 찾기': 'Find products', '상품 검색': 'Product search', '카테고리 상품': 'Category products', '상품 목록': 'Product list',
-  '전체 카테고리': 'All categories', '카테고리 선택': 'Select category', '모든 거래방식': 'All trade methods', '최신순': 'Newest', '낮은 가격순': 'Lowest price', '높은 가격순': 'Highest price', '초기화': 'Reset',
-  '디지털기기': 'Digital devices', '생활가전': 'Home appliances', '가구·인테리어': 'Furniture & interior', '의류·패션잡화': 'Clothing & fashion', '스포츠·레저': 'Sports & leisure', '취미·수집': 'Hobbies & collectibles', '도서·음반': 'Books & music', '유아용품': 'Baby products', '자동차용품': 'Vehicle accessories', '기타 실물 중고품': 'Other physical goods',
-  '직거래': 'In person', 'Testnet 택배': 'Testnet delivery', '실물 상품': 'Physical product', 'Pi 사용자': 'Pi user', '긍정': 'Positive', '보통': 'Neutral', '아쉬움': 'Negative', '내용 없음': 'No comment',
-  '기능시험용 가상 상품': 'Virtual test product', 'Testnet 기능시험 상품': 'Testnet feature-test product', '정상거래': 'Completed trades', '건': 'transactions',
-  '어떻게 거래할까요?': 'How would you like to trade?', '안전거래 결제는 Global Market 사업지갑으로 자동 연결됩니다.': 'Secure-trade payment connects automatically to the Global Market wallet.', '직거래 채팅 시작': 'Start in-person chat', 'Testnet 택배 안전거래': 'Testnet secure delivery',
-  '조건에 맞는 상품이 없습니다. 검색조건을 바꾸거나 초기화를 눌러보세요.': 'No products match these conditions. Change the filters or tap Reset.',
-  '홈': 'Home', '검색': 'Search', '등록': 'List', '채팅': 'Chat', '마이': 'My',
-  '＋ 상품 등록': '＋ List a product', '💬 문의·건의': '💬 Questions & Feedback', '♡ 내 마켓': '♡ My Market',
-  '상품 등록': 'List a product', '상품명': 'Product name', '상품 설명': 'Description', '가격': 'Price', '카테고리': 'Category', '지역': 'Region',
-  '거래방법': 'Trade method', '직거래': 'In person', '택배 안전거래': 'Secure delivery', '상품 등록하기': 'List product',
-  '내 마켓': 'My Market', '내 상품': 'My products', '찜한 상품': 'Favorites', '내 거래': 'My trades', '새로고침': 'Refresh',
-  '내 채팅': 'My chats', '참여 중인 채팅이 없습니다.': 'You have no active chats.', '메시지 보내기': 'Send message',
-  '문의·건의': 'Questions & Feedback', '문의 유형': 'Type', '제목': 'Subject', '내용': 'Message', '문의 보내기': 'Send inquiry', '내 문의 내역': 'My inquiries',
-  '개인정보처리방침': 'Privacy Policy', '이용약관': 'Terms of Service', '테스트 관리자': 'Test Admin'
-}));
-Object.entries({
-  '나의 마켓': 'My marketplace', '이전 시험 기록': 'Previous test records', '나의 거래 소식': 'My trade updates', '개인 거래 알림': 'Personal trade notifications', '신고 내역': 'Report history', '내 신고': 'My reports',
-  '관리팀 알림': 'Operations notices', 'Global Market 관리팀이 모든 고객에게 안내하는 이용 주의사항과 편의사항입니다. 개인 거래 알림은 ‘내 마켓’에서 확인하세요.': 'Notices and helpful information from the Global Market operations team. Check My Market for personal trade notifications.', '관리팀 알림을 불러오고 있습니다.': 'Loading operations notices.',
-  '테스트 상품 판매': 'Test product listing', '개인이 소유한 사용하지 않는 실물 상품을 등록할 수 있습니다. 제한품목으로 의심되는 내용은 공개되지 않고 검토 상태로 접수됩니다.': 'You may list unused physical products that you own. Suspected restricted items are submitted for review and are not published.',
-  '상품 사진(선택·최대 3장)': 'Product photos (optional, up to 3)', '사진 선택': 'Choose photos', '사진은 선택 즉시 자동으로 축소됩니다. 첫 번째 사진이 대표사진입니다.': 'Photos are resized automatically. The first photo is the cover image.', '가격(Test-Pi)': 'Price (Test-Pi)', '거래 지역': 'Trade region',
-  '직거래(당사자 책임)': 'In person (participants responsible)', '구매자가 결제한 이후에는 거래방법을 변경할 수 없어요.': 'The trade method cannot be changed after the buyer pays.', '직거래 정산 지갑주소': 'Direct-trade wallet address', '직거래 선택 시에만 필요합니다. 안전거래·택배거래는 Global Market 사업지갑으로 자동 설정됩니다.': 'Required only for in-person trades. Secure delivery uses the Global Market wallet automatically.', '시험 상품 등록': 'List test product',
-  '테스트 상품 관리': 'Test product management', '상품 정보 수정': 'Edit product', '수정 취소': 'Cancel editing', '새 사진을 선택하지 않으면 현재 사진이 유지됩니다. 제한품목으로 의심되는 내용은 검토 상태로 전환될 수 있습니다.': 'Current photos remain unless new photos are selected. Suspected restricted items may be moved to review.', '사진 교체(선택·최대 3장)': 'Replace photos (optional, up to 3)', '새 사진을 선택하면 기존 사진 전체가 교체됩니다.': 'Selecting new photos replaces all current photos.', '수정 내용 저장': 'Save changes',
-  '나의 대화': 'My conversations', '거래 채팅': 'Trade chat', '전송': 'Send', '거래 기능시험': 'Trade feature test', '거래 시험': 'Trade test', 'Test-Pi 결제 준비': 'Prepare Test-Pi payment', '모의 구매확정': 'Mock purchase confirmation',
-  '문의나 개선 의견을 남기면 처리상태와 관리자 답변을 이곳에서 확인할 수 있습니다.': 'Submit a question or suggestion and check its status and the administrator reply here.', '이용 문의': 'General question', '건의사항': 'Suggestion', '결제': 'Payment', '거래': 'Trade', '신고·분쟁': 'Report or dispute', '로그인 후 내 문의 내역을 확인할 수 있습니다.': 'Sign in to view your inquiries.',
-  '거래상태': 'Trade status', '거래금액': 'Trade amount', '거래방식': 'Trade method', '정산보류': 'Settlement hold', '보류중': 'On hold', '없음': 'None', '구매 거래': 'Purchase', '판매 거래': 'Sale',
-  'Testnet 정산상태': 'Testnet settlement status', '최소 정산금액 대기': 'Waiting for minimum payout', '모의정산 완료': 'Mock settlement complete', '판매자 정산 대기 잔액': 'Seller pending balance', '판매자 모의정산액': 'Seller mock settlement',
-  'Testnet 환불상태': 'Testnet refund status', '부분 모의환불 완료': 'Partial mock refund complete', '전액 모의환불 완료': 'Full mock refund complete', '관리자 과실 판정': 'Administrator fault decision', '정책 판정 필요': 'Policy decision required', '구매자 환불 예정액': 'Expected buyer refund', '구매자 환불 송금 가스비': 'Buyer refund transfer fee', '판매자 정산 송금 가스비': 'Seller settlement transfer fee',
-  '판매자 직거래 지갑': 'Seller direct-trade wallet', '지갑주소 복사': 'Copy wallet address', '직거래 송금과 상품 확인은 당사자 책임이며 플랫폼 안전거래·환불 보호가 적용되지 않습니다.': 'The participants are responsible for direct payment and product inspection. Platform secure-trade and refund protection do not apply.',
-  'Test-Pi 결제': 'Pay with Test-Pi', 'Testnet 발송 처리': 'Mock shipment', 'Testnet 배송완료 처리': 'Mock delivery complete', 'Testnet 정산 처리': 'Process mock settlement', '운송장 등록': 'Add tracking number', '구매확정': 'Confirm purchase', '분쟁 접수': 'Open dispute', '직거래 약속 만들기': 'Create meeting plan', '내 거래완료 표시': 'Mark my trade complete', '직거래 취소': 'Cancel in-person trade', '후기 작성': 'Write review', '거래 신고': 'Report trade',
-  '현재 사용자가 처리할 다음 작업이 없습니다.': 'There are no actions available for you now.', '아직 제안된 거래조건이 없습니다.': 'No trade terms have been proposed yet.', '이 조건 확인': 'Confirm these terms', '거래 시작': 'Start trade', '직거래 지갑 변경': 'Change direct-trade wallet', '직거래로 변경·지갑 등록': 'Switch to in-person and add wallet', '거래가 생성되어 거래방법을 변경할 수 없습니다.': 'The trade method cannot be changed after a trade is created.',
-  '구매자': 'Buyer', '확인': 'Confirmed', '대기': 'Waiting', '첫 메시지를 보내보세요.': 'Send the first message.', '구매 문의': 'Buying inquiry', '판매 문의': 'Selling inquiry', '상품정보 없음': 'Product unavailable', '새 채팅방': 'New chat', '열기 ›': 'Open ›',
-  '신뢰등급': 'Trust level', '신뢰점수': 'Trust score', '정상거래': 'Completed trades', '다음등급': 'Next level', '최고등급': 'Highest level', '진행한 거래가 없습니다.': 'No trade history.', '찜한 상품이 없습니다.': 'No favorite products.', '판매중': 'For sale', '판매중지': 'Paused', '판매완료': 'Sold'
-  , '검토중': 'Under review', '등록거절': 'Rejected', '예약중': 'Reserved', '결제대기': 'Awaiting payment', '발송대기': 'Awaiting shipment', '배송중': 'Shipping', '배송완료': 'Delivered', '거래완료': 'Completed', '취소': 'Cancelled', '분쟁중': 'In dispute', '환불': 'Refunded', 'Testnet 전액환불': 'Testnet full refund',
-  '판매자 과실': 'Seller at fault', '구매자 과실': 'Buyer at fault', '공동 과실': 'Shared fault', '플랫폼 과실': 'Platform at fault'
-  , '닫기': 'Close', '관리자 확인': 'Verify administrator', '회원 검색': 'Search users', '회원': 'Users', '상품검토': 'Product review', '추천상품': 'Featured products', '광고·협찬': 'Ads & sponsorships', '운영공지': 'Operations notices', '신고': 'Reports', '분쟁': 'Disputes', '이전 미납기록': 'Previous unpaid records', '작업기록': 'Activity log', 'Testnet 보상금 일괄 지급': 'Batch mock compensation payout'
-  , '수정': 'Edit', '판매 중지': 'Pause sale', '판매재개': 'Resume sale', '등록한 상품이 없습니다.': 'No products listed.', '구매': 'Purchase', '판매': 'Sale', '상세 ›': 'Details ›', 'Testnet 기능시험': 'Testnet feature test'
-}).forEach(([ko, en]) => englishUi.set(ko, en));
-const koreanUi = new Map([...englishUi].map(([ko, en]) => [en, ko]));
-const englishPlaceholders = new Map(Object.entries({
-  '상품명 또는 설명 검색': 'Search product name or description', '최저가': 'Minimum price', '최고가': 'Maximum price',
-  '상품명을 입력하세요.': 'Enter a product name.', '지역을 입력하세요.': 'Enter a region.', '문의 제목을 입력하세요.': 'Enter an inquiry subject.', '예: 서울 강남구': 'Example: Gangnam-gu, Seoul', 'G로 시작하는 56자리 Pi 지갑주소': '56-character Pi wallet address starting with G', '메시지를 입력하세요': 'Enter a message', '건의 내용을 5자 이상 입력하세요.': 'Enter at least 5 characters.'
-}));
-const koreanPlaceholders = new Map([...englishPlaceholders].map(([ko, en]) => [en, ko]));
-let uiLanguage = localStorage.getItem('globalMarketLanguage') === 'en' ? 'en' : 'ko';
-let translatingUi = false;
-
-function translateUi(root = document.body) {
-  if (!root || translatingUi) return;
-  translatingUi = true;
-  const translations = uiLanguage === 'en' ? englishUi : koreanUi;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const nodes = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode);
-  nodes.forEach((node) => {
-    if (node.parentElement?.closest('script,style,#productDetailTitle,#productDetailDescription,#chatMessages,.product h3,[data-user-content]')) return;
-    const original = node.nodeValue;
-    const trimmed = original.trim();
-    if (!translations.has(trimmed)) return;
-    node.nodeValue = original.replace(trimmed, translations.get(trimmed));
-  });
-  const placeholderTranslations = uiLanguage === 'en' ? englishPlaceholders : koreanPlaceholders;
-  root.querySelectorAll?.('[placeholder]').forEach((element) => {
-    const translated = placeholderTranslations.get(element.getAttribute('placeholder'));
-    if (translated) element.setAttribute('placeholder', translated);
-  });
-  document.documentElement.lang = uiLanguage;
-  const toggle = $('languageToggle');
-  if (toggle) {
-    const toggleText = uiLanguage === 'en' ? '한국어' : 'EN';
-    const toggleLabel = uiLanguage === 'en' ? '한국어로 변경' : 'Switch to English';
-    if (toggle.textContent !== toggleText) toggle.textContent = toggleText;
-    if (toggle.getAttribute('aria-label') !== toggleLabel) toggle.setAttribute('aria-label', toggleLabel);
-  }
-  translatingUi = false;
-}
-
-function toggleLanguage() {
-  uiLanguage = uiLanguage === 'ko' ? 'en' : 'ko';
-  localStorage.setItem('globalMarketLanguage', uiLanguage);
-  translateUi();
-}
-
-const uiTranslationObserver = new MutationObserver((records) => {
-  if (translatingUi) return;
-  records.forEach((record) => record.addedNodes.forEach((node) => {
-    if (node.nodeType === Node.ELEMENT_NODE) translateUi(node);
-    else if (node.nodeType === Node.TEXT_NODE) translateUi(node.parentElement);
-  }));
-});
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
 const productImages = (product) => (Array.isArray(product?.images) ? product.images : (product?.imageData ? [product.imageData] : [])).map(safeProductImage).filter(Boolean).slice(0, 3);
-const DAILY_SESSION_KEY = 'gm_testnet_daily_session';
-
-function koreaDateKey(date = new Date()) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
-}
-
-function saveDailySession(token) {
-  if (!token) return;
-  try { localStorage.setItem(DAILY_SESSION_KEY, JSON.stringify({ token, date: koreaDateKey() })); } catch { /* Pi Browser may disable persistent storage; the server cookie remains the fallback. */ }
-}
-
-function loadDailySession() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(DAILY_SESSION_KEY) || 'null');
-    if (!saved?.token || saved.date !== koreaDateKey()) {
-      try { localStorage.removeItem(DAILY_SESSION_KEY); } catch { /* storage unavailable */ }
-      return null;
-    }
-    return saved.token;
-  } catch {
-    try { localStorage.removeItem(DAILY_SESSION_KEY); } catch { /* storage unavailable */ }
-    return null;
-  }
-}
-
-function clearDailySession() { try { localStorage.removeItem(DAILY_SESSION_KEY); } catch { /* storage unavailable */ } }
-
-function pushAppHistory(entry) {
-  if (state.handlingHistory) return;
-  const next = { gmApp: true, ...entry };
-  if (JSON.stringify(history.state) !== JSON.stringify(next)) history.pushState(next, '', location.href);
-}
-
-function initializeNavigationHistory() {
-  if (!history.state?.gmApp) {
-    history.replaceState({ gmApp: true, gmView: 'exitGuard' }, '', location.href);
-    history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
-  }
-  window.addEventListener('popstate', async (event) => {
-    const route = event.state;
-    if (!route?.gmApp) return;
-    if (route.gmView === 'exitGuard') {
-      if (confirm('Global Market 앱을 종료할까요?')) history.back();
-      else {
-        history.pushState({ gmApp: true, gmView: 'home' }, '', location.href);
-        showHome(false);
-      }
-      return;
-    }
-    state.handlingHistory = true;
-    try {
-      if (route.gmView === 'home') showHome(false);
-      else if (route.gmView === 'search') showSearch(false);
-      else if (route.gmView === 'panel' && $(route.panelId)) showFeaturePanel(route.panelId, false);
-      else if (route.gmView === 'product' && route.productId) await openProductDetail(route.productId, false);
-      else showHome(false);
-    } finally { state.handlingHistory = false; }
-  });
-}
+const englishUi = new Map(Object.entries({
+  '수정': 'Edit', '판매 중지': 'Pause sale', '판매재개': 'Resume sale', '상세 ›': 'Details ›',
+  '사진 선택': 'Choose photos', '구매 거래': 'Purchases', '판매 거래': 'Sales'
+}));
 
 async function compressProductImage(file) {
   if (!file) return null;
@@ -280,7 +123,6 @@ async function changeAdminUserStatus(button) {
 
 const adminReportStatusNames = { received: '접수', reviewing: '검토 중', closed: '처리 완료' };
 const adminDecisionNames = { violation_confirmed: '위반 확인', no_violation: '위반 없음', insufficient_evidence: '증거 부족' };
-const suggestionCategoryNames = { general: '이용 문의', suggestion: '건의사항', payment: '결제', trade: '거래', report_dispute: '신고·분쟁' };
 
 function renderAdminReports(items) {
   $('adminReports').innerHTML = items.length ? items.map((report) => `
@@ -303,54 +145,6 @@ async function loadAdminReports() {
   return items.length;
 }
 
-function renderAdminSuggestions(items) {
-  $('adminSuggestions').innerHTML = items.length ? items.map((item) => `
-    <article class="management-card">
-      <div><strong>${escapeHtml(item.title || '기존 건의사항')}</strong><p class="meta">${escapeHtml(suggestionCategoryNames[item.category] || '건의사항')} · ${escapeHtml(item.id)} · ${item.status === 'closed' ? '답변 완료' : '접수'}</p></div>
-      <p>${escapeHtml(item.content)}</p><p class="meta">접수 ${escapeHtml(new Date(item.createdAt).toLocaleString())}</p>
-      ${item.decision ? `<p class="admin-decision"><strong>처리 내용</strong> · ${escapeHtml(item.decision.reason)}</p>` : ''}
-      ${item.status !== 'closed' ? `<button class="primary" type="button" data-suggestion-close="${escapeHtml(item.id)}">처리 완료</button>` : ''}
-    </article>`).join('') : '<p class="empty">접수된 건의사항이 없습니다.</p>';
-  $('adminSuggestions').querySelectorAll('[data-suggestion-close]').forEach((button) => button.addEventListener('click', () => closeAdminSuggestion(button.dataset.suggestionClose)));
-}
-
-async function loadAdminSuggestions() {
-  const { items } = await adminApi('/api/v1/admin/suggestions');
-  renderAdminSuggestions(items);
-  return items.length;
-}
-
-function renderAdminAnnouncements(items) {
-  $('adminAnnouncements').innerHTML = `<button id="createAdminAnnouncement" class="primary wide" type="button">새 운영 공지 등록</button>${items.length ? items.map((item) => `<article class="management-card"><div><strong>${item.mandatory ? '<span class="mandatory-label">필수 확인</span> ' : ''}${escapeHtml(item.title)}</strong><p class="meta">${item.status === 'active' ? '게시 중' : '게시 종료'} · ${escapeHtml(new Date(item.createdAt).toLocaleString())}</p></div><p>${escapeHtml(item.body)}</p>${item.status === 'active' ? `<button class="secondary" type="button" data-announcement-archive="${escapeHtml(item.id)}">공지 종료</button>` : `<p class="meta">종료 사유: ${escapeHtml(item.archiveReason || '')}</p>`}</article>`).join('') : '<p class="empty">등록된 운영 공지가 없습니다.</p>'}`;
-  $('createAdminAnnouncement').addEventListener('click', createAdminAnnouncement);
-  $('adminAnnouncements').querySelectorAll('[data-announcement-archive]').forEach((button) => button.addEventListener('click', () => archiveAdminAnnouncement(button.dataset.announcementArchive)));
-}
-
-async function loadAdminAnnouncements() { const { items } = await adminApi('/api/v1/admin/announcements'); renderAdminAnnouncements(items); return items.filter((item) => item.status === 'active').length; }
-async function createAdminAnnouncement() {
-  const title = prompt('모든 고객에게 표시할 운영 공지 제목을 입력하세요.');
-  if (!title?.trim()) return;
-  const body = prompt('이용 주의사항 또는 편의사항을 입력하세요.');
-  if (!body?.trim()) return;
-  const mandatory = confirm('모든 사용자가 반드시 확인해야 하는 중요 공지로 등록할까요?\n\n확인: 앱 사용 전 필수 확인\n취소: 알림종에서 확인하는 일반 공지');
-  try {
-    await adminApi('/api/v1/admin/announcements', { method: 'POST', body: JSON.stringify({ title: title.trim(), body: body.trim(), mandatory }) });
-    $('adminResult').textContent = mandatory ? '필수 확인 공지를 게시했습니다. 확인 전에는 로그인 사용자의 앱 이용이 차단됩니다.' : '관리팀 운영 공지를 게시했습니다. 모든 고객의 알림종에 새 공지 숫자가 표시됩니다.';
-    await Promise.all([loadAdminAnnouncements(), ...(state.user ? [loadAnnouncements()] : [])]);
-  } catch (error) { $('adminResult').textContent = error.message; }
-}
-async function archiveAdminAnnouncement(id) { const reason = prompt('공지 종료 사유를 입력하세요.'); if (!reason?.trim()) return; try { await adminApi(`/api/v1/admin/announcements/${encodeURIComponent(id)}/archive`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); $('adminResult').textContent = '운영 공지 게시를 종료했습니다.'; await loadAdminAnnouncements(); } catch (error) { $('adminResult').textContent = error.message; } }
-
-async function closeAdminSuggestion(id) {
-  const reason = prompt('처리 내용 또는 답변을 입력하세요. 사용자에게 알림으로 전달됩니다.');
-  if (!reason?.trim()) return;
-  try {
-    await adminApi(`/api/v1/admin/suggestions/${encodeURIComponent(id)}/close`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) });
-    $('adminResult').textContent = '건의사항을 처리 완료했습니다.';
-    await Promise.all([loadAdminSuggestions(), loadAdminDashboard()]);
-  } catch (error) { $('adminResult').textContent = error.message; }
-}
-
 async function assignAdminReport(reportId) {
   try {
     await adminApi(`/api/v1/admin/reports/${encodeURIComponent(reportId)}/assign`, { method: 'POST', body: JSON.stringify({ reason: '웹 관리자 검토 시작' }) });
@@ -371,7 +165,7 @@ async function decideAdminReport(reportId) {
   } catch (error) { $('adminResult').textContent = error.message; }
 }
 
-const adminActionNames = { USER_STATUS_CHANGED: '회원 상태 변경', PRODUCT_REVIEW_DECIDED: '상품 검토 판정', REPORT_ASSIGNED: '신고 담당 지정', REPORT_DECIDED: '신고 판정', DISPUTE_DECIDED: '분쟁 판정', SUGGESTION_CLOSED: '건의사항 처리', ANNOUNCEMENT_CREATED: '운영 공지 등록', ANNOUNCEMENT_ARCHIVED: '운영 공지 종료' };
+const adminActionNames = { USER_STATUS_CHANGED: '회원 상태 변경', PRODUCT_REVIEW_DECIDED: '상품 검토 판정', REPORT_ASSIGNED: '신고 담당 지정', REPORT_DECIDED: '신고 판정', DISPUTE_DECIDED: '분쟁 판정', GAS_DEBT_APPEAL_DECIDED: '미납 이의신청 판정', MOCK_SETTLEMENT_COMPLETED: 'Testnet 모의정산 완료' };
 
 async function loadAdminAudit() {
   const { items } = await adminApi('/api/v1/admin/audit-logs');
@@ -417,7 +211,7 @@ async function decideAdminDispute(disputeId) {
   const reason = prompt('분쟁 판정 사유를 입력하세요. 신청자에게 안내됩니다.');
   if (!reason?.trim()) return;
   body.reason = reason.trim();
-  if (!confirm(`${disputeDecisionNames[type]} · ${faultNames[faultType] || '과실 판정 없음'}으로 처리할까요? 과실 판정은 상품대금 처리에만 사용되며 가스비는 각자가 부담합니다. 실제 Pi가 이동하지 않는 Testnet 모의처리입니다.`)) return;
+  if (!confirm(`${disputeDecisionNames[type]} · ${faultNames[faultType] || '과실 판정 없음'}으로 처리할까요? 가스비 부담액이 과실에 따라 자동 계산됩니다. 실제 Pi가 이동하지 않는 Testnet 모의처리입니다.`)) return;
   try {
     await adminApi(`/api/v1/admin/disputes/${encodeURIComponent(disputeId)}/decision`, { method: 'POST', body: JSON.stringify(body) });
     $('adminResult').textContent = 'Testnet 분쟁 판정을 저장했습니다. 실제 Pi는 이동하지 않았습니다.';
@@ -455,37 +249,59 @@ async function loadAdminProducts() {
   return items.length;
 }
 
-async function loadAdminPopularProducts() {
+async function loadAdminSuggestions() {
+  const { items } = await adminApi('/api/v1/admin/suggestions');
+  $('adminSuggestions').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(item.category)} · ${escapeHtml(item.status)}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.content)}</p>${item.decision ? `<p class="admin-decision">${escapeHtml(item.decision.reason)}</p>` : ''}</div>${item.status !== 'closed' ? `<button class="primary" data-suggestion-close="${escapeHtml(item.id)}">처리 결과 등록</button>` : ''}</article>`).join('') : '<p class="empty">접수된 건의사항이 없습니다.</p>';
+  $('adminSuggestions').querySelectorAll('[data-suggestion-close]').forEach((button) => button.addEventListener('click', async () => {
+    const reason = prompt('사용자에게 안내할 처리 결과를 입력하세요.');
+    if (!reason?.trim() || !confirm('이 건의사항을 처리 완료로 저장할까요?')) return;
+    try { await adminApi(`/api/v1/admin/suggestions/${encodeURIComponent(button.dataset.suggestionClose)}/close`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); await Promise.all([loadAdminSuggestions(), loadAdminAudit()]); } catch (error) { $('adminResult').textContent = error.message; }
+  }));
+  return items.length;
+}
+
+async function loadAdminAnnouncements() {
+  const { items } = await adminApi('/api/v1/admin/announcements');
+  $('adminAnnouncements').innerHTML = `<button id="createAdminAnnouncement" class="primary wide" type="button">새 운영 공지 등록</button>` + (items.length ? items.map((item) => `<article class="management-card"><div><strong>${item.mandatory ? '<span class="mandatory-label">필수 확인</span> ' : ''}${escapeHtml(item.title)}</strong><p class="meta">${item.status === 'active' ? '게시 중' : '게시 종료'} · ${escapeHtml(new Date(item.createdAt).toLocaleString())}</p><p>${escapeHtml(item.body)}</p></div>${item.status === 'active' ? `<button class="secondary" data-announcement-archive="${escapeHtml(item.id)}">공지 종료</button>` : `<p class="meta">종료 사유: ${escapeHtml(item.archiveReason || '')}</p>`}</article>`).join('') : '<p class="empty">등록된 운영 공지가 없습니다.</p>');
+  $('createAdminAnnouncement').addEventListener('click', async () => {
+    const title = prompt('운영 공지 제목'); if (!title?.trim()) return;
+    const body = prompt('운영 공지 내용'); if (!body?.trim()) return;
+    const mandatory = confirm('로그인 사용자가 반드시 명시적으로 확인해야 하는 필수 공지입니까?');
+    if (!confirm('이 운영 공지를 게시할까요?')) return;
+    try { await adminApi('/api/v1/admin/announcements', { method: 'POST', body: JSON.stringify({ title: title.trim(), body: body.trim(), mandatory }) }); await Promise.all([loadAdminAnnouncements(), loadAdminAudit(), ...(state.user ? [loadAnnouncements()] : [])]); } catch (error) { $('adminResult').textContent = error.message; }
+  });
+  $('adminAnnouncements').querySelectorAll('[data-announcement-archive]').forEach((button) => button.addEventListener('click', async () => {
+    const reason = prompt('공지 종료 사유'); if (!reason?.trim() || !confirm('이 공지의 게시를 종료할까요?')) return;
+    try { await adminApi(`/api/v1/admin/announcements/${encodeURIComponent(button.dataset.announcementArchive)}/archive`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); await Promise.all([loadAdminAnnouncements(), loadAdminAudit()]); } catch (error) { $('adminResult').textContent = error.message; }
+  }));
+  return items.filter((item) => item.status === 'active').length;
+}
+
+async function loadAdminPopular() {
   const { items } = await adminApi('/api/v1/admin/popular-products');
-  $('adminPopular').innerHTML = items.length ? items.map((item) => `
-    <article class="management-card">
-      <div><small>${item.selected ? '추천 상품 노출 중' : '일반 상품'}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div>
-      <button class="${item.selected ? 'secondary danger-text' : 'primary'}" data-popular-admin="${escapeHtml(item.id)}" data-popular-selected="${item.selected ? 'false' : 'true'}">${item.selected ? '선정 해제' : '추천 상품 선정'}</button>
-    </article>`).join('') : '<p class="empty">선정 가능한 판매 중 상품이 없습니다.</p>';
+  $('adminPopular').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><button class="${item.selected ? 'secondary' : 'primary'}" data-popular-admin="${escapeHtml(item.id)}" data-popular-selected="${item.selected ? 'false' : 'true'}">${item.selected ? '추천 해제' : '추천 선정'}</button></article>`).join('') : '<p class="empty">추천 대상으로 관리할 상품이 없습니다.</p>';
   $('adminPopular').querySelectorAll('[data-popular-admin]').forEach((button) => button.addEventListener('click', async () => {
     const selected = button.dataset.popularSelected === 'true';
-    const reason = prompt(selected ? '추천 상품 선정 사유를 입력하세요.' : '추천 상품 선정 해제 사유를 입력하세요.');
-    if (!reason?.trim() || !confirm(selected ? '이 상품을 추천 상품 영역에 표시할까요?' : '이 상품을 추천 상품 영역에서 내릴까요?')) return;
-    try {
-      await adminApi(`/api/v1/admin/popular-products/${encodeURIComponent(button.dataset.popularAdmin)}`, { method: 'POST', body: JSON.stringify({ selected, reason: reason.trim() }) });
-      $('adminResult').textContent = selected ? '추천 상품으로 선정했습니다.' : '추천 상품 선정을 해제했습니다.';
-      await Promise.all([loadAdminPopularProducts(), loadAdminAudit(), loadPopularProducts()]);
-    } catch (error) { $('adminResult').textContent = error.message; }
+    const reason = prompt(selected ? '추천 선정 사유를 입력하세요.' : '추천 해제 사유를 입력하세요.');
+    if (!reason?.trim() || !confirm(selected ? '추천 상품으로 선정할까요?' : '추천 상품에서 해제할까요?')) return;
+    try { await adminApi(`/api/v1/admin/popular-products/${encodeURIComponent(button.dataset.popularAdmin)}`, { method: 'POST', body: JSON.stringify({ selected, reason: reason.trim() }) }); await Promise.all([loadAdminPopular(), loadPopularProducts(), loadAdminAudit()]); } catch (error) { $('adminResult').textContent = error.message; }
   }));
   return items.length;
 }
 
 async function loadAdminPromotions() {
   const { items, products } = await adminApi('/api/v1/admin/promotion-campaigns');
-  const placementNames = { home_banner:'홈 배너', home_featured:'홈 추천 영역', search_top:'검색 상단' };
-  $('adminPromotions').innerHTML = `<button id="createPromotion" class="primary" type="button">광고·협찬 계약 등록</button>` + (items.length ? items.map((item) => `<article class="management-card"><div><small>${item.type === 'sponsorship' ? '협찬' : '광고'} · ${escapeHtml(item.status)} · ${escapeHtml(placementNames[item.placement] || '홈 추천 영역')}</small><h3>${escapeHtml(item.sponsorName)}</h3><p>${escapeHtml(products.find((product) => product.id === item.productId)?.title || item.productId)} · ${escapeHtml(new Date(item.startAt).toLocaleDateString())}~${escapeHtml(new Date(item.endAt).toLocaleDateString())}</p></div>${item.status !== 'ended' ? `<button data-promotion-end="${escapeHtml(item.id)}">계약 종료</button>` : ''}</article>`).join('') : '<p class="empty">등록된 광고·협찬 계약이 없습니다.</p>');
-  $('createPromotion').addEventListener('click', async () => {
-    const productId = prompt(`대상 상품 번호\n${products.map((item) => `${item.id}: ${item.title}`).join('\n')}`); if (!products.some((item) => item.id === productId)) return;
-    const sponsorName = prompt('광고주 또는 협찬사 이름'); if (!sponsorName?.trim()) return;
-    const type = confirm('협찬이면 확인, 광고이면 취소') ? 'sponsorship' : 'advertising'; const placement = prompt('노출 위치: home_banner / home_featured / search_top', 'home_featured'); const startAt = prompt('시작일: 2026-09-01'); const endAt = prompt('종료일: 2026-09-30'); const note = prompt('계약 메모');
-    try { await adminApi('/api/v1/admin/promotion-campaigns', { method:'POST', body:JSON.stringify({ productId, sponsorName, type, placement, startAt, endAt, note }) }); await Promise.all([loadAdminPromotions(), loadAdminAudit()]); } catch(error) { $('adminResult').textContent=error.message; }
+  const options = products.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.title)}</option>`).join('');
+  $('adminPromotions').innerHTML = `<form id="promotionForm" class="product-form"><label>대상 상품<select id="promotionProduct" required><option value="">상품 선택</option>${options}</select></label><label>광고주·협찬사<input id="promotionSponsor" maxlength="120" required></label><div class="form-row"><label>구분<select id="promotionType"><option value="advertising">광고</option><option value="sponsorship">협찬</option></select></label><label>노출 위치<select id="promotionPlacement"><option value="home_banner">홈 배너</option><option value="home_featured">홈 추천</option><option value="search_top">검색 상단</option></select></label></div><div class="form-row"><label>시작<input id="promotionStart" type="datetime-local" required></label><label>종료<input id="promotionEnd" type="datetime-local" required></label></div><label>운영 메모<textarea id="promotionNote" maxlength="1000"></textarea></label><button class="primary">계약 등록</button></form>` + (items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(item.type)} · ${escapeHtml(item.status)}</small><h3>${escapeHtml(item.sponsorName)}</h3><p>${escapeHtml(new Date(item.startAt).toLocaleString())} ~ ${escapeHtml(new Date(item.endAt).toLocaleString())}</p></div>${['scheduled', 'active'].includes(item.status) ? `<button class="secondary" data-promotion-end="${escapeHtml(item.id)}">계약 종료</button>` : ''}</article>`).join('') : '<p class="empty">등록된 광고·협찬 계약이 없습니다.</p>');
+  $('promotionForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const body = { productId: $('promotionProduct').value, sponsorName: $('promotionSponsor').value, type: $('promotionType').value, placement: $('promotionPlacement').value, startAt: $('promotionStart').value, endAt: $('promotionEnd').value, note: $('promotionNote').value };
+    try { await adminApi('/api/v1/admin/promotion-campaigns', { method: 'POST', body: JSON.stringify(body) }); await Promise.all([loadAdminPromotions(), loadAdminAudit()]); } catch (error) { $('adminResult').textContent = error.message; }
   });
-  $('adminPromotions').querySelectorAll('[data-promotion-end]').forEach((button) => button.addEventListener('click', async () => { const reason=prompt('계약 종료 사유'); if(!reason?.trim() || !confirm('이 계약을 종료할까요?')) return; try { await adminApi(`/api/v1/admin/promotion-campaigns/${encodeURIComponent(button.dataset.promotionEnd)}/end`, { method:'POST', body:JSON.stringify({reason:reason.trim()}) }); await Promise.all([loadAdminPromotions(),loadAdminAudit()]); } catch(error) { $('adminResult').textContent=error.message; } }));
+  $('adminPromotions').querySelectorAll('[data-promotion-end]').forEach((button) => button.addEventListener('click', async () => {
+    const reason = prompt('계약 종료 사유를 입력하세요.'); if (!reason?.trim() || !confirm('이 계약을 종료할까요?')) return;
+    try { await adminApi(`/api/v1/admin/promotion-campaigns/${encodeURIComponent(button.dataset.promotionEnd)}/end`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); await Promise.all([loadAdminPromotions(), loadAdminAudit()]); } catch (error) { $('adminResult').textContent = error.message; }
+  }));
   return items.length;
 }
 
@@ -518,13 +334,15 @@ async function loadAdminDashboard() {
   const cards = [
     ['users', summary.users.total, `회원 · 정지 ${summary.users.suspended}`],
     ['products', summary.products.reviewPending, '상품 검토 대기'],
+    ['trades', summary.trades.settlementPending, `정산 대기 · 보류 ${summary.trades.held}`],
     ['reports', summary.reports.open, '미처리 신고'],
+    ['suggestions', summary.suggestions.open, '미처리 건의사항'],
     ['disputes', summary.disputes.open, '미처리 분쟁'],
-    ['suggestions', summary.suggestions.open, '미처리 건의사항']
+    ['gasDebts', summary.gasDebts.appealPending, '미납 이의신청']
   ];
   $('adminDashboard').innerHTML = cards.map(([section, count, label]) => `<button type="button" data-admin-go="${section}"><strong>${escapeHtml(count)}</strong><small>${escapeHtml(label)}</small></button>`).join('');
   $('adminDashboard').querySelectorAll('[data-admin-go]').forEach((button) => button.addEventListener('click', () => {
-    const targets = { users: 'showAdminUsers', products: 'showAdminProducts', reports: 'showAdminReports', disputes: 'showAdminDisputes', suggestions: 'showAdminSuggestions', gasDebts: 'showAdminGasDebts' };
+    const targets = { users: 'showAdminUsers', products: 'showAdminProducts', trades: 'showAdminTrades', reports: 'showAdminReports', suggestions: 'showAdminSuggestions', disputes: 'showAdminDisputes', gasDebts: 'showAdminGasDebts' };
     $(targets[button.dataset.adminGo]).click();
   }));
 }
@@ -542,37 +360,51 @@ function stopAdminAlertPolling() {
   state.adminAlertTimer = null;
 }
 
+async function loadAdminTrades() {
+  const { items } = await adminApi('/api/v1/admin/trades');
+  $('adminTrades').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${item.type === 'direct' ? '직거래' : 'Testnet 택배'} · ${escapeHtml(statusNames[item.status] || item.status)}</small><h3>${escapeHtml(item.productTitle)}</h3><p>${escapeHtml(item.amount)} Test-Pi · ${item.settlementHold ? '정산 보류' : item.settlement ? `모의정산 ${escapeHtml(item.settlement.netAmount)} Test-Pi` : '정산 기록 없음'}</p></div><div class="card-actions">${item.type === 'parcel_testnet' && item.status === 'purchase_confirmed' && !item.settlement && !item.settlementHold ? `<button class="primary" data-admin-settle="${escapeHtml(item.id)}">Testnet 모의정산</button>` : ''}</div></article>`).join('') : '<p class="empty">관리할 거래가 없습니다.</p>';
+  $('adminTrades').querySelectorAll('[data-admin-settle]').forEach((button) => button.addEventListener('click', async () => {
+    const reason = prompt('모의정산 처리 사유를 입력하세요. 감사기록에 남습니다.');
+    if (!reason?.trim() || !confirm('실제 Pi가 이동하지 않는 Testnet 모의정산을 완료할까요?')) return;
+    try { await adminApi(`/api/v1/trades/${encodeURIComponent(button.dataset.adminSettle)}/mock-settlement`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) }); $('adminResult').textContent = 'Testnet 모의정산을 완료했습니다. 실제 Pi는 지급되지 않았습니다.'; await Promise.all([loadAdminTrades(), loadAdminAudit()]); } catch (error) { $('adminResult').textContent = error.message; }
+  }));
+  return items.length;
+}
+
 function showAdminSection(name) {
   const users = name === 'users';
   const products = name === 'products';
   const popular = name === 'popular';
   const promotions = name === 'promotions';
+  const announcements = name === 'announcements';
+  const trades = name === 'trades';
   const reports = name === 'reports';
   const disputes = name === 'disputes';
   const suggestions = name === 'suggestions';
-  const announcements = name === 'announcements';
   const gasDebts = name === 'gasDebts';
   $('adminUsers').classList.toggle('hidden', !users);
   $('adminProducts').classList.toggle('hidden', !products);
   $('adminPopular').classList.toggle('hidden', !popular);
   $('adminPromotions').classList.toggle('hidden', !promotions);
+  $('adminAnnouncements').classList.toggle('hidden', !announcements);
+  $('adminTrades').classList.toggle('hidden', !trades);
   $('adminReports').classList.toggle('hidden', !reports);
   $('adminDisputes').classList.toggle('hidden', !disputes);
   $('adminSuggestions').classList.toggle('hidden', !suggestions);
-  $('adminAnnouncements').classList.toggle('hidden', !announcements);
   $('adminGasDebts').classList.toggle('hidden', !gasDebts);
-  $('mockPayCompensations').classList.toggle('hidden', !gasDebts);
   $('adminAudit').classList.toggle('hidden', name !== 'audit');
   $('adminSearchForm').classList.toggle('hidden', !users);
   $('showAdminUsers').classList.toggle('active', users);
   $('showAdminProducts').classList.toggle('active', products);
   $('showAdminPopular').classList.toggle('active', popular);
   $('showAdminPromotions').classList.toggle('active', promotions);
+  $('showAdminAnnouncements').classList.toggle('active', announcements);
+  $('showAdminTrades').classList.toggle('active', trades);
   $('showAdminReports').classList.toggle('active', reports);
   $('showAdminDisputes').classList.toggle('active', disputes);
   $('showAdminSuggestions').classList.toggle('active', suggestions);
-  $('showAdminAnnouncements').classList.toggle('active', announcements);
   $('showAdminGasDebts').classList.toggle('active', gasDebts);
+  $('mockPayCompensations').classList.toggle('hidden', name !== 'gasDebts');
   $('showAdminAudit').classList.toggle('active', name === 'audit');
   if (state.adminKey) loadAdminDashboard().catch((error) => { $('adminResult').textContent = error.message; });
 }
@@ -596,21 +428,19 @@ function renderQuote(quote) {
 
 async function loadProducts(query = '', append = false) {
   const params = new URLSearchParams(query);
-  params.set('limit', state.homeMode && !query ? '8' : '20');
+  params.set('limit', '20');
   params.set('offset', append ? String(state.products.length) : '0');
   const { items, pagination } = await api(`/api/v1/products?${params.toString()}`);
   state.productQuery = query;
   state.products = append ? [...state.products, ...items] : items;
   state.productHasMore = Boolean(pagination?.hasMore);
   $('loadMoreProducts').classList.toggle('hidden', !state.productHasMore);
-  $('products').classList.toggle('home-product-row', state.homeMode && !query);
-  $('products').classList.toggle('category-product-grid', !$('categoryBrowseBar').classList.contains('hidden'));
   $('products').innerHTML = state.products.length ? state.products.map((item) => `
     <article class="product">
       <div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
       <h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p>
-      <p class="meta"><span data-user-content>${escapeHtml(item.region)}</span> · <span>기능시험용 가상 상품</span></p>
-      <p class="seller-line"><span data-user-content>${escapeHtml(item.seller?.username || 'Pi 사용자')}</span> · ${escapeHtml(item.seller?.trustLevel || 'Bronze')}</p>
+      <p class="meta">${escapeHtml(item.region)} · 기능시험용 가상 상품</p>
+      <p class="seller-line">${escapeHtml(item.seller?.username || 'Pi 사용자')} · ${escapeHtml(item.seller?.trustLevel || 'Bronze')}</p>
       <div class="method-row">${item.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('')}</div>
       <button data-product="${item.id}">상세 보기</button>
     </article>`).join('') : '<p class="empty product-empty">조건에 맞는 상품이 없습니다. 검색조건을 바꾸거나 초기화를 눌러보세요.</p>';
@@ -619,15 +449,13 @@ async function loadProducts(query = '', append = false) {
 
 async function loadPopularProducts() {
   const { items } = await api('/api/v1/popular-products');
-  state.popularProducts = items;
+  for (const item of items) {
+    const index = state.products.findIndex((product) => product.id === item.id);
+    if (index >= 0) state.products[index] = item; else state.products.push(item);
+  }
   $('popularProductsEmpty').classList.toggle('hidden', items.length > 0);
   $('popularProducts').classList.toggle('hidden', items.length === 0);
-  $('popularProducts').innerHTML = items.map((item) => `
-    <article class="product">
-      <div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div>
-      <h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p>
-      <button data-popular-product="${escapeHtml(item.id)}">상세 보기</button>
-    </article>`).join('');
+  $('popularProducts').innerHTML = items.map((item) => `<article class="product"><div class="image">${productImages(item)[0] ? `<img src="${productImages(item)[0]}" alt="${escapeHtml(item.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div><h3>${escapeHtml(item.title)}</h3><p class="price">${escapeHtml(item.price)} Test-Pi</p><p class="meta">${escapeHtml(item.region)}</p><button data-popular-product="${escapeHtml(item.id)}">상세 보기</button></article>`).join('');
   $('popularProducts').querySelectorAll('[data-popular-product]').forEach((button) => button.addEventListener('click', () => openProductDetail(button.dataset.popularProduct)));
 }
 
@@ -637,88 +465,23 @@ async function loadCategories() {
   $('productCategory').innerHTML = '<option value="">카테고리 선택</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
   $('editProductCategory').innerHTML = '<option value="">카테고리 선택</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
   $('searchCategory').innerHTML = '<option value="">전체 카테고리</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
-  const icons = { digital_devices: '📱', home_appliances: '🔌', furniture: '🪑', fashion: '👕', sports: '⚽', hobby: '🎨', books: '📚', baby: '🧸', vehicle_goods: '🚗', other_physical: '📦' };
-  $('categoryGrid').innerHTML = items.map((item) => `<button type="button" data-home-category="${escapeHtml(item.id)}"><span>${icons[item.id] || '📦'}</span><small>${escapeHtml(item.name)}</small></button>`).join('');
-  $('categoryGrid').querySelectorAll('[data-home-category]').forEach((button) => button.addEventListener('click', () => openCategory(button.dataset.homeCategory)));
 }
 
-function hideMainPanels() {
-  ['productDetailPanel', 'myPanel', 'announcementPanel', 'registerPanel', 'editProductPanel', 'chatPanel', 'tradePanel', 'adminPanel', 'suggestionPanel'].forEach((id) => $(id).classList.add('hidden'));
-}
-
-function showHome(addHistory = true) {
-  if (addHistory) pushAppHistory({ gmView: 'home' });
-  hideMainPanels();
-  state.homeMode = true;
-  $('homeNotice').classList.remove('hidden');
-  $('homeHero').classList.remove('hidden');
-  $('homeCategories').classList.remove('hidden');
-  $('marketSection').classList.remove('hidden');
-  $('searchForm').classList.add('hidden');
-  $('categoryBrowseBar').classList.add('hidden');
-  $('marketEyebrow').textContent = 'NEW';
-  $('marketTitle').textContent = '최근 등록 상품';
-  $('popularProductsSection').classList.remove('hidden');
-  Promise.all([loadProducts(), loadPopularProducts()]).catch((error) => alert(error.message));
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function showSearch(addHistory = true) {
-  if (addHistory) pushAppHistory({ gmView: 'search' });
-  hideMainPanels();
-  state.homeMode = false;
-  $('homeNotice').classList.add('hidden');
-  $('homeHero').classList.add('hidden');
-  $('homeCategories').classList.add('hidden');
-  $('marketSection').classList.remove('hidden');
-  $('searchForm').classList.remove('hidden');
-  $('categoryBrowseBar').classList.add('hidden');
-  $('marketEyebrow').textContent = '상품 찾기';
-  $('marketTitle').textContent = '상품 검색';
-  $('popularProductsSection').classList.add('hidden');
-  $('marketSection').scrollIntoView({ behavior: 'auto', block: 'start' });
-}
-
-async function openCategory(categoryId) {
-  showSearch();
-  $('searchForm').reset();
-  $('searchCategory').value = categoryId;
-  $('searchForm').classList.add('hidden');
-  $('categoryBrowseBar').classList.remove('hidden');
-  $('marketEyebrow').textContent = '카테고리 상품';
-  $('marketTitle').textContent = '상품 목록';
-  $('selectedCategoryName').textContent = state.categories.find((item) => item.id === categoryId)?.name || '카테고리 상품';
-  await loadProducts(`categoryId=${encodeURIComponent(categoryId)}`);
-}
-
-function showFeaturePanel(panelId, addHistory = true) {
-  if (addHistory) pushAppHistory({ gmView: 'panel', panelId });
-  hideMainPanels();
-  state.homeMode = false;
-  $('homeNotice').classList.add('hidden');
-  $('homeHero').classList.add('hidden');
-  $('homeCategories').classList.add('hidden');
-  $('marketSection').classList.add('hidden');
-  $(panelId).classList.remove('hidden');
-  $(panelId).scrollIntoView({ behavior: 'smooth' });
-}
-
-async function openProductDetail(productId, addHistory = true) {
-  const product = state.products.find((item) => item.id === productId) || state.popularProducts.find((item) => item.id === productId);
+async function openProductDetail(productId) {
+  const product = state.products.find((item) => item.id === productId);
   if (!product) return;
-  if (addHistory) pushAppHistory({ gmView: 'product', productId });
   state.selectedProduct = product;
   const images = productImages(product);
   $('productDetailGallery').innerHTML = images.length
     ? images.map((image, index) => `<img src="${image}" alt="${escapeHtml(product.title)} 상품 사진 ${index + 1}">`).join('')
     : '<div class="empty-image" aria-hidden="true">◉</div>';
-  $('productDetailCategory').textContent = state.categories.find((item) => item.id === product.categoryId)?.name || '실물 상품';
+  $('productDetailCategory').textContent = state.categories.find((item) => item.id === product.categoryId)?.name || '실물 중고상품';
   $('productDetailTitle').textContent = product.title;
   $('productDetailPrice').textContent = `${product.price} Test-Pi`;
   $('productDetailDescription').textContent = product.description;
-  $('productDetailMeta').innerHTML = `<span data-user-content>${escapeHtml(product.region)}</span> · <span>Testnet 기능시험 상품</span>`;
-  $('productDetailSeller').innerHTML = `<small>판매자</small><strong data-user-content>${escapeHtml(product.seller?.username || 'Pi 사용자')}</strong><span>${escapeHtml(product.seller?.trustLevel || 'Bronze')} · <span>정상거래</span> ${escapeHtml(product.seller?.normalTradeCount || 0)} <span>건</span></span>`;
-  $('productWalletPayment').innerHTML = '';
+  $('productDetailMeta').textContent = `${product.region} · Testnet 기능시험 상품`;
+  $('productDetailSeller').innerHTML = `<small>판매자</small><strong>${escapeHtml(product.seller?.username || 'Pi 사용자')}</strong><span>${escapeHtml(product.seller?.trustLevel || 'Bronze')} · 정상거래 ${escapeHtml(product.seller?.normalTradeCount || 0)}건</span>`;
+  $('productDetailMethods').innerHTML = product.methods.map((method) => `<span class="tag">${method === 'direct' ? '직거래' : 'Testnet 택배'}</span>`).join('');
   $('productDetailReviews').innerHTML = '<p class="empty">후기를 불러오는 중입니다.</p>';
   $('toggleFavorite').textContent = product.isFavorite ? '♥ 찜 해제' : '♡ 찜하기';
   $('productDetailPanel').classList.remove('hidden');
@@ -726,31 +489,8 @@ async function openProductDetail(productId, addHistory = true) {
   try {
     const { items } = await api(`/api/v1/products/${encodeURIComponent(product.id)}/reviews`);
     const sentimentNames = { positive: '긍정', neutral: '보통', negative: '아쉬움' };
-    $('productDetailReviews').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(sentimentNames[item.sentiment] || item.sentiment)} · <span data-user-content>${escapeHtml(item.writerName)}</span></small><p data-user-content>${escapeHtml(item.comment || '내용 없음')}</p></div></article>`).join('') : '<p class="empty">아직 등록된 판매자 후기가 없습니다.</p>';
+    $('productDetailReviews').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(sentimentNames[item.sentiment] || item.sentiment)} · ${escapeHtml(item.writerName)}</small><p>${escapeHtml(item.comment || '내용 없음')}</p></div></article>`).join('') : '<p class="empty">아직 등록된 판매자 후기가 없습니다.</p>';
   } catch (error) { $('productDetailReviews').innerHTML = `<p class="empty">${escapeHtml(error.message)}</p>`; }
-}
-
-async function showWalletQr(mode) {
-  const product = state.selectedProduct;
-  if (!product) return;
-  try {
-    const result = await api(`/api/v1/products/${encodeURIComponent(product.id)}/wallet-qr?mode=${encodeURIComponent(mode)}`);
-    const direct = mode === 'direct';
-    $('productWalletPayment').innerHTML = `<article class="management-card"><div><small>${direct ? '직거래 개인지갑' : 'Testnet 안전거래 사업지갑'}</small><h3>${escapeHtml(result.amount)} Test-Pi</h3><div class="wallet-qr">${result.qrSvg}</div><p class="wallet-address">${escapeHtml(result.address)}</p><p class="form-notice">${direct ? '판매자 개인 지갑으로 직접 송금합니다. 플랫폼 보호·정산·환불이 적용되지 않습니다.' : 'Global Market Testnet 사업지갑입니다. 입금 확인과 환불·판매자 정산은 관리자가 수동 처리합니다.'}</p><button type="button" data-copy-wallet>지갑주소 복사</button></div></article>`;
-    document.querySelector('[data-copy-wallet]')?.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(result.address); alert('지갑주소를 복사했습니다.'); }
-      catch { prompt('지갑주소를 길게 눌러 복사하세요.', result.address); }
-    });
-  } catch (error) { alert(error.message); }
-}
-
-function updateWalletFields(editing = false) {
-  const directCheckbox = $(editing ? 'editMethodDirect' : 'methodDirect');
-  const field = $(editing ? 'editProductDirectWalletField' : 'productDirectWalletField');
-  const input = $(editing ? 'editProductDirectWallet' : 'productDirectWallet');
-  const show = directCheckbox.checked;
-  field.classList.toggle('hidden', !show);
-  input.required = show;
 }
 
 async function registerProduct(event) {
@@ -759,25 +499,24 @@ async function registerProduct(event) {
   const methods = [];
   if ($('methodDirect').checked) methods.push('direct');
   if ($('methodParcel').checked) methods.push('parcel_testnet');
-  if (methods.includes('direct') && !$('productDirectWallet').value.trim()) return alert('직거래용 Pi 지갑주소를 입력하세요.');
   try {
     $('registerResult').textContent = '사진과 상품 정보를 준비하고 있습니다.';
     const images = [...state.registerImages];
-    const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods, images, directWalletAddress: methods.includes('direct') ? $('productDirectWallet').value : '' };
+    const body = { title: $('productTitle').value, description: $('productDescription').value, price: Number($('productPrice').value), categoryId: $('productCategory').value, region: $('productRegion').value, methods, images };
     const { product } = await api('/api/v1/products', { method: 'POST', body: JSON.stringify(body) });
     $('registerResult').textContent = product.status === 'under_review' ? '등록 내용이 검토 대상으로 접수됐습니다. 검토 전에는 공개되지 않습니다.' : '시험 상품이 등록됐습니다.';
-    $('productForm').reset(); state.registerImages = []; renderImageEditor('registerProductImages', 'registerImages'); updateWalletFields();
+    $('productForm').reset(); state.registerImages = []; renderImageEditor('registerProductImages', 'registerImages'); $('methodDirect').checked = true; $('methodParcel').checked = true;
     await Promise.all([loadProducts(), loadMyProducts()]);
   } catch (error) { $('registerResult').textContent = error.message; }
 }
 
-async function chooseTrade(productId, preferredType = null) {
+async function chooseTrade(productId) {
   if (!state.user) { alert('Pi Testnet 로그인 후 거래조건을 제안할 수 있습니다.'); return; }
-  const product = state.selectedProduct?.id === productId ? state.selectedProduct : state.products.find((item) => item.id === productId) || state.popularProducts.find((item) => item.id === productId);
+  const product = state.products.find((item) => item.id === productId);
   if (!product) throw new Error('상품 정보를 다시 불러오세요.');
-  let type = preferredType;
-  if (!type && product.methods.length === 1) type = product.methods[0];
-  else if (!type) return showTradeMethodChoices(product);
+  let type;
+  if (product.methods.length === 1) type = product.methods[0];
+  else type = confirm('확인: Testnet 택배 모의 안전거래\n취소: 직거래(플랫폼 안전결제 없음)') ? 'parcel_testnet' : 'direct';
   if (!product.methods.includes(type)) throw new Error('판매자가 허용한 거래방식만 선택할 수 있습니다.');
   const { room } = await api(`/api/v1/products/${productId}/chat-rooms`, { method: 'POST' });
   const { agreement } = await api(`/api/v1/chat-rooms/${room.id}/agreements`, {
@@ -795,49 +534,94 @@ async function chooseTrade(productId, preferredType = null) {
   $('tradePanel').scrollIntoView({ behavior: 'smooth' });
 }
 
-function showTradeMethodChoices(product) {
-  const choices = [];
-  if (product.methods.includes('direct')) choices.push(product.directWalletAvailable
-    ? '<button class="secondary" type="button" data-trade-method="direct">직거래 선택</button>'
-    : '<p class="form-notice">판매자의 직거래 지갑이 등록되지 않아 직거래를 선택할 수 없습니다.</p>');
-  if (product.methods.includes('parcel_testnet')) choices.push('<button class="primary" type="button" data-trade-method="parcel_testnet">택배 안전거래 선택</button>');
-  $('productWalletPayment').innerHTML = `<article class="management-card"><div><small>거래방법 선택</small><h3>어떻게 거래할까요?</h3><p class="meta">안전거래 결제는 Global Market 사업지갑으로 자동 연결됩니다.</p><div class="actions">${choices.join('')}</div></div></article>`;
-  $('productWalletPayment').querySelectorAll('[data-trade-method]').forEach((button) => button.addEventListener('click', () => chooseTrade(product.id, button.dataset.tradeMethod).catch((error) => alert(error.message))));
-  $('productWalletPayment').scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
 async function loginPi() {
   if (!window.Pi) throw new Error('Pi SDK를 불러오지 못했습니다. Pi Browser 또는 네트워크를 확인하세요.');
   Pi.init({ version: '2.0', sandbox: true });
-  const auth = await Pi.authenticate(['username', 'payments'], async (payment) => {
-    log('미완료 Test-Pi 결제 발견', payment);
+  state.pendingPiPayments = [];
+  const auth = await Pi.authenticate(['username', 'payments'], (payment) => {
+    state.pendingPiPayments.push(payment);
+    log('미완료 Test-Pi 결제를 확인하고 있습니다.', { paymentId: payment?.identifier });
   });
   const session = await api('/api/v1/auth/pi', { method: 'POST', body: JSON.stringify({ accessToken: auth.accessToken }) });
   state.sessionToken = session.sessionToken;
-  saveDailySession(session.sessionToken);
+  state.onboardingRequired = session.onboardingRequired;
   applyAuthenticatedUser(session.user, '서버 검증 완료');
-  await Promise.all([loadMyMarket(), loadMySuggestions(), loadAnnouncements()]);
+  renderOnboarding();
+  await recoverPendingPiPayments();
+  await Promise.all([loadMyMarket(), loadAnnouncements()]);
+}
+
+async function recoverPendingPiPayments() {
+  for (const providerPayment of state.pendingPiPayments.splice(0)) {
+    const internalPaymentId = providerPayment?.metadata?.internalPaymentId;
+    const txid = providerPayment?.transaction?.txid;
+    const transactionVerified = providerPayment?.status?.transaction_verified === true || providerPayment?.transaction?.verified === true;
+    if (!providerPayment?.identifier || !internalPaymentId || !txid || !transactionVerified) {
+      log('미완료 결제는 서버 완료 조건을 충족하지 않아 보류했습니다.', { paymentId: providerPayment?.identifier });
+      continue;
+    }
+    try {
+      const result = await api(`/api/v1/payments/${encodeURIComponent(internalPaymentId)}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({ piPaymentId: providerPayment.identifier, txid })
+      });
+      state.payment = result.payment;
+      state.trade = result.trade;
+      showPaymentResult('success', '중단되었던 Test-Pi 결제를 서버 검증 후 복구했습니다.');
+      log('미완료 Test-Pi 결제 복구 완료', { paymentId: providerPayment.identifier });
+    } catch (error) {
+      showPaymentResult('error', '미완료 Test-Pi 결제를 자동 복구하지 못했습니다. 새 결제를 만들지 말고 관리자에게 문의하세요.');
+      log(`미완료 Test-Pi 결제 복구 실패: ${error.message}`);
+    }
+  }
 }
 
 function applyAuthenticatedUser(user, message = '로그인 유지 중') {
   state.user = user;
-  $('authState').textContent = `${user.username || user.id} · ${message} · 오늘 로그인 유지`;
+  $('authState').textContent = `${user.nickname || user.piUsername || user.id} · ${message}`;
   $('piLogin').classList.add('hidden');
   $('logout').classList.remove('hidden');
-  $('checklistPayment').classList.remove('hidden');
+  $('notificationBell').classList.remove('hidden');
+  $('headerAnnouncements').classList.remove('hidden');
+  $('checklistPayment').classList.toggle('hidden', state.onboardingRequired);
+  startLiveUpdates();
+}
+
+function renderOnboarding() {
+  $('onboardingPanel').classList.toggle('hidden', !state.user || !state.onboardingRequired);
+  $('onboardingPiUsername').textContent = state.user?.piUsername || '';
+  if (state.user?.nickname) $('memberNickname').value = state.user.nickname;
+}
+
+async function completeOnboarding(event) {
+  event.preventDefault();
+  $('onboardingResult').textContent = '회원 설정을 저장하고 있습니다.';
+  try {
+    const { items } = await api('/api/v1/terms');
+    const selected = new Set([
+      ...($('acceptTerms').checked ? ['terms_of_service'] : []),
+      ...($('acceptPrivacy').checked ? ['privacy_policy'] : [])
+    ]);
+    await api('/api/v1/terms/consents', { method: 'POST', body: JSON.stringify({ consents: items.map((term) => ({ id: term.id, version: term.version, accepted: selected.has(term.id) })) }) });
+    const result = await api('/api/v1/me/profile', { method: 'PATCH', body: JSON.stringify({ nickname: $('memberNickname').value }) });
+    state.user = result.user; state.onboardingRequired = result.onboardingRequired;
+    applyAuthenticatedUser(result.user, '회원 설정 완료'); renderOnboarding();
+    $('onboardingResult').textContent = '회원 설정이 완료되었습니다.';
+    await Promise.all([loadMyMarket(), loadAnnouncements()]);
+  } catch (error) { $('onboardingResult').textContent = error.message; }
 }
 
 async function restoreSession() {
   $('authState').textContent = '로그인 상태 확인 중';
   try {
-    state.sessionToken ||= loadDailySession();
-    const { user } = await api('/api/v1/me');
+    const { user, onboardingRequired } = await api('/api/v1/me');
+    state.onboardingRequired = onboardingRequired;
     applyAuthenticatedUser(user);
-    await Promise.all([loadMyMarket(), loadMySuggestions(), loadAnnouncements()]);
+    renderOnboarding();
+    await Promise.all([loadMyMarket(), loadAnnouncements()]);
   } catch {
     state.user = null;
     state.sessionToken = null;
-    clearDailySession();
     $('authState').textContent = '로그인 전 · Pi Testnet 로그인이 필요합니다.';
     $('piLogin').classList.remove('hidden');
     $('logout').classList.add('hidden');
@@ -845,7 +629,7 @@ async function restoreSession() {
   }
 }
 
-const statusNames = { available: '판매중', paused: '판매중지', under_review: '검토중', rejected: '등록거절', reserved: '예약중', sold: '판매완료', payment_pending: '결제대기', shipping_pending: '발송대기', shipping: '배송중', delivered: '배송완료', purchase_confirmed: '구매확정', completed: '거래완료', cancelled: '취소', disputed: '분쟁중', refunded: '환불', mock_refunded: 'Testnet 전액환불' };
+const statusNames = { available: '판매중', paused: '판매중지', under_review: '검토중', rejected: '등록거절', reserved: '예약중', sold: '판매완료', deleted: '삭제', payment_pending: '결제대기', shipping_pending: '발송대기', shipping: '배송중', delivered: '배송완료', purchase_confirmed: '구매확정', completed: '거래완료', cancelled: '취소', disputed: '분쟁중', refunded: '환불', mock_refunded: 'Testnet 전액환불' };
 
 function openProductEdit(product) {
   state.editingProduct = product;
@@ -856,8 +640,6 @@ function openProductEdit(product) {
   $('editProductRegion').value = product.region || '';
   $('editMethodDirect').checked = product.methods.includes('direct');
   $('editMethodParcel').checked = product.methods.includes('parcel_testnet');
-  $('editProductDirectWallet').value = product.directWalletAddress || '';
-  updateWalletFields(true);
   $('editProductImage').value = '';
   $('editProductResult').textContent = '';
   state.editingImages = [...productImages(product)];
@@ -881,7 +663,6 @@ async function saveProductEdit(event) {
   const methods = [];
   if ($('editMethodDirect').checked) methods.push('direct');
   if ($('editMethodParcel').checked) methods.push('parcel_testnet');
-  if (methods.includes('direct') && !$('editProductDirectWallet').value.trim()) return alert('직거래용 Pi 지갑주소를 입력하세요.');
   try {
     $('editProductResult').textContent = '수정 내용을 확인하고 있습니다.';
     const body = {
@@ -890,8 +671,7 @@ async function saveProductEdit(event) {
       price: Number($('editProductPrice').value),
       categoryId: $('editProductCategory').value,
       region: $('editProductRegion').value,
-      methods,
-      directWalletAddress: methods.includes('direct') ? $('editProductDirectWallet').value : ''
+      methods
     };
     body.images = [...state.editingImages];
     const { product: updated } = await api(`/api/v1/products/${product.id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -903,7 +683,7 @@ async function saveProductEdit(event) {
 
 async function loadMyProducts() {
   const { items } = await api('/api/v1/me/products');
-  $('myProducts').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(statusNames[item.status] || item.status)}</small><h3 data-user-content>${escapeHtml(item.title)}</h3><p data-user-content>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><div class="card-actions">${!['reserved', 'sold'].includes(item.status) ? `<button data-edit-product="${escapeHtml(item.id)}">수정</button>` : ''}${['available', 'paused'].includes(item.status) ? `<button data-product-status="${escapeHtml(item.id)}" data-next-status="${item.status === 'available' ? 'paused' : 'available'}">${item.status === 'available' ? '판매 중지' : '판매재개'}</button>` : ''}</div></article>`).join('') : '<p class="empty">등록한 상품이 없습니다.</p>';
+  $('myProducts').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(statusNames[item.status] || item.status)}</small><h3 data-user-content>${escapeHtml(item.title)}</h3><p data-user-content>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><div class="card-actions">${!['reserved', 'sold'].includes(item.status) ? `<button data-edit-product="${escapeHtml(item.id)}">수정</button>` : ''}${['available', 'paused'].includes(item.status) ? `<button data-product-status="${escapeHtml(item.id)}" data-next-status="${item.status === 'available' ? 'paused' : 'available'}">${item.status === 'available' ? '판매 중지' : '판매재개'}</button>` : ''}<button class="danger-text" data-delete-product="${escapeHtml(item.id)}">삭제</button></div></article>`).join('') : '<p class="empty">등록한 상품이 없습니다.</p>';
   document.querySelectorAll('[data-product-status]').forEach((button) => button.addEventListener('click', async () => {
     try { await api(`/api/v1/products/${button.dataset.productStatus}/status`, { method: 'PATCH', body: JSON.stringify({ status: button.dataset.nextStatus }) }); await Promise.all([loadMyProducts(), loadProducts()]); } catch (error) { alert(error.message); }
   }));
@@ -911,17 +691,21 @@ async function loadMyProducts() {
     const product = items.find((item) => item.id === button.dataset.editProduct); if (!product) return;
     openProductEdit(product);
   }));
+  document.querySelectorAll('[data-delete-product]').forEach((button) => button.addEventListener('click', async () => {
+    if (!confirm('상품을 목록에서 삭제하시겠습니까? 거래 기록은 보존됩니다.')) return;
+    try { await api(`/api/v1/products/${button.dataset.deleteProduct}`, { method: 'DELETE' }); await Promise.all([loadMyProducts(), loadProducts()]); } catch (error) { alert(error.message); }
+  }));
 }
 
 async function loadMyTrades() {
   const { items } = await api('/api/v1/me/trades');
-  $('myTrades').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-trade-detail="${escapeHtml(item.id)}"><div><small><span>${item.myRole === 'buyer' ? '구매' : '판매'}</span> · <span>${escapeHtml(statusNames[item.status] || item.status)}</span></small><h3 data-user-content>${escapeHtml(item.product?.title || (item.purpose === 'pi_checklist' ? 'Testnet 기능시험' : '상품정보 없음'))}</h3><p>${escapeHtml(item.amount)} Test-Pi · <span>${item.type === 'direct' ? '직거래' : 'Testnet 택배'}</span></p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">진행한 거래가 없습니다.</p>';
+  $('myTrades').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-trade-detail="${escapeHtml(item.id)}"><div><small>${item.myRole === 'buyer' ? '구매' : '판매'} · ${escapeHtml(statusNames[item.status] || item.status)}</small><h3>${escapeHtml(item.product?.title || (item.purpose === 'pi_checklist' ? 'Testnet 기능시험' : '상품정보 없음'))}</h3><p>${escapeHtml(item.amount)} Test-Pi · ${item.type === 'direct' ? '직거래' : 'Testnet 택배'}</p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">진행한 거래가 없습니다.</p>';
   document.querySelectorAll('[data-trade-detail]').forEach((button) => button.addEventListener('click', () => openTradeDetail(button.dataset.tradeDetail).catch((error) => alert(error.message))));
 }
 
 async function loadMyFavorites() {
   const { items } = await api('/api/v1/me/favorites');
-  $('myFavorites').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-favorite-product="${escapeHtml(item.id)}"><div><small>${escapeHtml(item.seller?.trustLevel || 'Bronze')} <span>판매자</span></small><h3 data-user-content>${escapeHtml(item.title)}</h3><p data-user-content>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">찜한 상품이 없습니다.</p>';
+  $('myFavorites').innerHTML = items.length ? items.map((item) => `<button class="management-card trade-card" data-favorite-product="${escapeHtml(item.id)}"><div><small>${escapeHtml(item.seller?.trustLevel || 'Bronze')} 판매자</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.price)} Test-Pi · ${escapeHtml(item.region)}</p></div><span>상세 ›</span></button>`).join('') : '<p class="empty">찜한 상품이 없습니다.</p>';
   document.querySelectorAll('[data-favorite-product]').forEach((button) => button.addEventListener('click', () => {
     const product = items.find((item) => item.id === button.dataset.favoriteProduct);
     if (!product) return;
@@ -938,16 +722,15 @@ async function openTradeDetail(tradeId) {
   const reviewSection = detail.reviews.length
     ? `<div class="section-title"><div><p class="eyebrow">TRADE REVIEWS</p><h3>이 거래의 후기</h3></div></div><div class="management-list">${detail.reviews.map((item) => `<article class="management-card"><div><small>${item.writerId === state.user.id ? '내가 작성한 후기' : '받은 후기'} · ${escapeHtml(sentimentNames[item.sentiment] || item.sentiment)}</small><p>${escapeHtml(item.comment || '내용 없음')}</p></div></article>`).join('')}</div>`
     : '';
-  const settlementSection = detail.settlement ? `<div class="detail-grid"><p><small>Testnet 정산상태</small><strong>${detail.settlement.status === 'mock_pending_batch' ? '최소 정산금액 대기' : '모의정산 완료'}</strong></p><p><small>${detail.settlement.status === 'mock_pending_batch' ? '판매자 정산 대기 잔액' : '판매자 모의정산액'}</small><strong>${escapeHtml(detail.settlement.status === 'mock_pending_batch' ? detail.settlement.pendingAmount : detail.settlement.netAmount)} Test-Pi</strong></p></div>${detail.settlement.status === 'mock_pending_batch' ? '<p class="form-notice">정산액이 송금 가스비보다 작아 소멸시키지 않고 보관합니다. 다른 판매대금과 합산해 최소 정산금액을 충족하면 일괄 송금합니다.</p>' : ''}` : '';
+  const settlementSection = detail.settlement ? `<div class="detail-grid"><p><small>Testnet 정산상태</small><strong>모의정산 완료 · 실제 Pi 지급 없음</strong></p><p><small>정산 기준금액</small><strong>${escapeHtml(detail.settlement.grossAmount)} Test-Pi</strong></p><p><small>판매자 수수료</small><strong>${escapeHtml(detail.settlement.sellerFee)} Test-Pi</strong></p><p><small>조정금액</small><strong>${escapeHtml(detail.settlement.adjustmentAmount || 0)} Test-Pi</strong></p><p><small>판매자 모의정산액</small><strong>${escapeHtml(detail.settlement.netAmount)} Test-Pi</strong></p><p><small>처리시각</small><strong>${escapeHtml(new Date(detail.settlement.completedAt).toLocaleString())}</strong></p></div>` : '';
+  const paymentSection = detail.payment ? `<div class="detail-grid"><p><small>Testnet 결제상태</small><strong>${escapeHtml(detail.payment.status)}</strong></p><p><small>상품금액</small><strong>${escapeHtml(detail.payment.itemAmount)} Test-Pi</strong></p><p><small>구매자 수수료</small><strong>${escapeHtml(detail.payment.buyerFee)} Test-Pi</strong></p><p><small>구매자 총 결제금액</small><strong>${escapeHtml(detail.payment.buyerTotal)} Test-Pi</strong></p></div>` : '';
+  const shipmentSection = trade.type === 'parcel_testnet' ? `<div class="detail-grid"><p><small>판매자 발송기한</small><strong>${trade.shipBy ? escapeHtml(new Date(trade.shipBy).toLocaleString()) : '결제 검증 후 표시'}</strong></p>${detail.shipment ? `<p><small>택배사·운송장</small><strong>${escapeHtml(detail.shipment.carrier)} · ${escapeHtml(detail.shipment.trackingNumber)}</strong></p><p><small>배송상태</small><strong>${escapeHtml(statusNames[detail.shipment.status] || detail.shipment.status)}</strong></p><p><small>자동 구매확정 예정</small><strong>${detail.shipment.autoConfirmAt ? escapeHtml(new Date(detail.shipment.autoConfirmAt).toLocaleString()) : '배송완료 후 표시'}</strong></p>` : ''}</div>` : '';
   const liability = detail.refund?.gasLiability;
-  const currentGasPolicy = liability?.gasPolicy === 'each_party_bears_own_fee';
-  const expectedSellerBalance = Math.round((Number(detail.refund?.retainedAmount || 0) * 0.99 + Number.EPSILON) * 10000000) / 10000000;
-  const refundSection = detail.refund ? `<div class="detail-grid"><p><small>Testnet 환불상태</small><strong>${detail.refund.type === 'partial' ? '부분 모의환불 완료' : '전액 모의환불 완료'}</strong></p><p><small>관리자 과실 판정</small><strong>${escapeHtml(faultNames[liability?.faultType] || '정책 판정 필요')}</strong></p><p><small>구매자 환불 예정액</small><strong>${escapeHtml(currentGasPolicy ? (liability?.buyerFinalRefund ?? detail.refund.totalBuyerRefund) : detail.refund.totalBuyerRefund)} Test-Pi</strong></p>${detail.refund.type === 'partial' ? `<p><small>판매자 정산 대기 잔액</small><strong>${escapeHtml(detail.settlement?.pendingAmount ?? expectedSellerBalance)} Test-Pi</strong></p>` : ''}${currentGasPolicy ? `<p><small>구매자 환불 송금 가스비</small><strong>${escapeHtml(detail.refund.refundTransferGasFee ?? 0)} Pi</strong></p><p><small>판매자 정산 송금 가스비</small><strong>${escapeHtml(detail.refund.settlementTransferGasFee ?? 0)} Pi</strong></p>` : ''}</div><p class="form-notice"><strong>${currentGasPolicy ? '현재 가스비 정책' : '이전 시험 정책 기록'}:</strong> ${currentGasPolicy ? '환불·정산 송금 가스비는 각 수령자가 부담하며, 소액 판매대금은 정산 대기 잔액으로 보관합니다.' : '과거의 가스비 보상·미납 계산값은 현재 정책에 사용하지 않습니다. 판매자 부담 0.03 Pi 표시는 폐기되었습니다.'}</p>` : '';
-  const directWallet = trade.type === 'direct' ? detail.product?.directWalletAddress : '';
-  const directWalletSection = directWallet ? `<article class="management-card"><div><small>판매자 직거래 지갑</small><p class="wallet-address">${escapeHtml(directWallet)}</p><p class="form-notice">직거래 송금과 상품 확인은 당사자 책임이며 플랫폼 안전거래·환불 보호가 적용되지 않습니다.</p><button type="button" data-copy-direct-wallet class="secondary">지갑주소 복사</button></div></article>` : '';
-  $('tradeDetailContent').innerHTML = `<p class="eyebrow">${trade.myRole === 'buyer' ? '구매 거래' : '판매 거래'}</p><h3>${escapeHtml(tradeTitle)}</h3><div class="detail-grid"><p><small>거래상태</small><strong>${escapeHtml(statusNames[trade.status] || trade.status)}</strong></p><p><small>거래금액</small><strong>${escapeHtml(trade.amount)} Test-Pi</strong></p><p><small>거래방식</small><strong>${trade.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p><small>정산보류</small><strong>${trade.settlementHold ? '보류중' : '없음'}</strong></p></div>${directWalletSection}${settlementSection}${refundSection}${reviewSection}`;
+  const refundSection = detail.refund ? `<div class="detail-grid"><p><small>Testnet 환불상태</small><strong>${detail.refund.type === 'partial' ? '부분 모의환불 완료' : '전액 모의환불 완료'}</strong></p><p><small>관리자 과실 판정</small><strong>${escapeHtml(faultNames[liability?.faultType] || '정책 판정 필요')}</strong></p><p><small>상품대금·수수료 환불액</small><strong>${escapeHtml(liability?.buyerBaseRefund ?? detail.refund.totalBuyerRefund)} Test-Pi</strong></p><p><small>가스비 보상 청구액</small><strong>${escapeHtml(liability?.buyerGasCompensationClaim ?? 0)} Test-Pi</strong></p><p><small>가스비 보상 상태</small><strong>${liability?.gasCompensationStatus === 'pending_recovery' ? '책임자에게 회수 대기' : '해당 없음'}</strong></p><p><small>현재 구매자 환불 예정액</small><strong>${escapeHtml(liability?.buyerFinalRefund ?? detail.refund.totalBuyerRefund)} Test-Pi</strong></p>${detail.refund.type === 'partial' ? `<p><small>판매자 최종 모의정산액</small><strong>${escapeHtml(liability?.sellerFinalSettlement ?? detail.refund.retainedAmount)} Test-Pi</strong></p>` : ''}<p><small>구매자 가스비 부담</small><strong>${escapeHtml(liability?.buyerGasLiability ?? 0)} Pi</strong></p><p><small>판매자 가스비 부담</small><strong>${escapeHtml(liability?.sellerGasLiability ?? 0)} Pi</strong></p><p><small>플랫폼 가스비 부담</small><strong>${escapeHtml(liability?.platformGasLiability ?? 0)} Pi</strong></p></div><p class="form-notice"><strong>가스비 안내:</strong> 가스비 보상은 책임자에게 실제 회수된 뒤 별도로 지급되며, 회수 전에는 환불액에 포함되지 않습니다.</p>` : '';
+  $('tradeDetailContent').innerHTML = `<p class="eyebrow">${trade.myRole === 'buyer' ? 'PURCHASE' : 'SALE'}</p><h3>${escapeHtml(tradeTitle)}</h3><div class="detail-grid"><p><small>거래상태</small><strong>${escapeHtml(statusNames[trade.status] || trade.status)}</strong></p><p><small>거래금액</small><strong>${escapeHtml(trade.amount)} Test-Pi</strong></p><p><small>거래방식</small><strong>${trade.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p><small>정산보류</small><strong>${trade.settlementHold ? '보류중' : '없음'}</strong></p></div>${paymentSection}${shipmentSection}${settlementSection}${refundSection}${reviewSection}`;
   const actions = [];
   if (trade.type === 'parcel_testnet' && trade.myRole === 'buyer' && trade.status === 'payment_pending') actions.push(['actionPay', 'Test-Pi 결제', 'primary']);
+  if (trade.type === 'parcel_testnet' && trade.status === 'payment_pending') actions.push(['actionCancelTrade', '결제 전 거래 취소', 'secondary']);
   if (trade.purpose === 'pi_checklist' && trade.myRole === 'buyer' && trade.status === 'shipping_pending') actions.push(['actionChecklistShip', 'Testnet 발송 처리', 'primary']);
   if (trade.purpose === 'pi_checklist' && trade.myRole === 'buyer' && trade.status === 'shipping') actions.push(['actionChecklistDeliver', 'Testnet 배송완료 처리', 'primary']);
   if (trade.purpose === 'pi_checklist' && trade.myRole === 'buyer' && trade.status === 'purchase_confirmed' && !detail.settlement) actions.push(['actionChecklistSettle', 'Testnet 정산 처리', 'primary']);
@@ -959,16 +742,7 @@ async function openTradeDetail(tradeId) {
   if (['purchase_confirmed', 'completed'].includes(trade.status) && !detail.reviews.some((item) => item.writerId === state.user.id)) actions.push(['actionReview', '후기 작성', 'secondary']);
   actions.push(['actionReport', '거래 신고', 'secondary']);
   $('tradeActions').innerHTML = actions.map(([id, label, style]) => `<button id="${id}" class="${style}">${label}</button>`).join('') || '<p class="status">현재 사용자가 처리할 다음 작업이 없습니다.</p>';
-  $('tradeDetailCard').classList.remove('hidden');
-  $('tradeDetailContent').querySelector('[data-copy-direct-wallet]')?.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(directWallet);
-      alert('판매자 지갑주소를 복사했습니다.');
-    } catch {
-      prompt('지갑주소를 길게 눌러 복사하세요.', directWallet);
-    }
-  });
-  bindTradeActions(detail); $('tradeDetailCard').scrollIntoView({ behavior: 'smooth' });
+  $('tradeDetailCard').classList.remove('hidden'); bindTradeActions(detail); $('tradeDetailCard').scrollIntoView({ behavior: 'smooth' });
 }
 
 function bindTradeActions(detail) {
@@ -976,55 +750,42 @@ function bindTradeActions(detail) {
   $('actionPay')?.addEventListener('click', () => preparePayment().then(refresh).catch((error) => alert(error.message)));
   $('actionChecklistShip')?.addEventListener('click', async () => { if (!confirm('체크리스트 시험 거래를 Testnet 발송 처리할까요? 실제 택배는 발송되지 않습니다.')) return; try { await api(`/api/v1/testnet/checklist-trades/${trade.id}/shipment`, { method: 'POST' }); await refresh(); } catch (error) { alert(error.message); } });
   $('actionChecklistDeliver')?.addEventListener('click', async () => { if (!confirm('체크리스트 시험 거래를 Testnet 배송완료 처리할까요?')) return; try { await api(`/api/v1/testnet/checklist-trades/${trade.id}/delivery`, { method: 'POST' }); await refresh(); } catch (error) { alert(error.message); } });
-  $('actionChecklistSettle')?.addEventListener('click', async () => { if (!confirm(detail.settlement ? 'Testnet 모의정산 상태를 다시 확인할까요? 현재 정책에서는 가스비 보상이나 미납금 회수를 처리하지 않습니다.' : 'Testnet 모의정산을 완료하고 거래를 최종 완료할까요? 실제 Pi는 이동하지 않습니다.')) return; try { await api(`/api/v1/testnet/checklist-trades/${trade.id}/settlement`, { method: 'POST' }); await refresh(); } catch (error) { alert(error.message); } });
+  $('actionChecklistSettle')?.addEventListener('click', async () => { if (!confirm('Testnet 모의정산을 완료하고 거래를 최종 완료할까요? 실제 Pi는 이동하지 않습니다.')) return; try { await api(`/api/v1/testnet/checklist-trades/${trade.id}/settlement`, { method: 'POST' }); await refresh(); } catch (error) { alert(error.message); } });
   $('actionShip')?.addEventListener('click', async () => { const carrier = prompt('택배사 이름'); if (!carrier) return; const trackingNumber = prompt('운송장 번호'); if (!trackingNumber) return; try { await api(`/api/v1/trades/${trade.id}/shipment`, { method: 'POST', body: JSON.stringify({ carrier, trackingNumber }) }); await refresh(); } catch (error) { alert(error.message); } });
-  $('actionConfirm')?.addEventListener('click', async () => { if (!confirm('상품을 확인했고 구매를 확정할까요?')) return; try { await api(`/api/v1/trades/${trade.id}/confirm-purchase`, { method: 'POST' }); await refresh(); } catch (error) { alert(error.message); } });
-  $('actionDispute')?.addEventListener('click', async () => { if (!confirm('분쟁·환불 가스비 필수 안내\n\n• 최초 결제 가스비 0.01 Pi는 반환되지 않습니다.\n• 환불 송금 가스비는 구매자 환불액에서 차감됩니다.\n• 부분환불의 정산 송금 가스비는 판매자 정산액에서 차감됩니다.\n• 과실과 관계없이 상대방에게 가스비 보상을 청구하지 않습니다.\n• 가스비 미납금이나 가스비로 인한 거래 제한은 없습니다.\n\n동의해야 분쟁 접수가 가능합니다. 동의합니까?')) return; const reason = prompt('분쟁 사유를 입력하세요'); if (!reason) return; try { await api(`/api/v1/trades/${trade.id}/disputes`, { method: 'POST', body: JSON.stringify({ reason, gasFeeNoticeAccepted: true }) }); await refresh(); } catch (error) { alert(error.message); } });
+  $('actionConfirm')?.addEventListener('click', async () => { if (!confirm('상품의 상태와 구성품을 충분히 확인했습니까? 구매확정 후 일반 취소가 제한되고 Testnet 모의정산 절차가 시작됩니다.')) return; try { await api(`/api/v1/trades/${trade.id}/confirm-purchase`, { method: 'POST' }); await refresh(); } catch (error) { alert(error.message); } });
+  $('actionDispute')?.addEventListener('click', async () => { if (!confirm('분쟁·환불 가스비 필수 안내\n\n• 최초 결제 가스비 0.01 Pi는 반환되지 않습니다.\n• 환불 송금 가스비는 구매자 환불액에서 차감됩니다.\n• 부분환불의 정산 송금 가스비는 판매자 정산액에서 차감됩니다.\n• 과실과 관계없이 상대방에게 가스비 보상을 청구하지 않습니다.\n• 현재 정책에서는 가스비 보상이나 미납금 회수를 처리하지 않습니다.\n• 가스비 미납금이나 가스비로 인한 거래 제한은 없습니다.\n\n동의해야 분쟁 접수가 가능합니다. 동의합니까?')) return; const reason = prompt('분쟁 사유를 입력하세요'); if (!reason) return; try { await api(`/api/v1/trades/${trade.id}/disputes`, { method: 'POST', body: JSON.stringify({ reason, gasFeeNoticeAccepted: true }) }); await refresh(); } catch (error) { alert(error.message); } });
   $('actionDirectPlan')?.addEventListener('click', async () => { if (!confirm('직거래 결제는 당사자 간 개인 Pi 지갑 송금만 허용하며, 플랫폼 안전거래 없이 모든 확인과 송금은 당사자 책임입니다. 동의합니까?')) return; const scheduledAt = prompt('약속 일시(예: 2026-08-20 15:00)'); const place = prompt('약속 장소'); if (!scheduledAt || !place) return; try { await api(`/api/v1/trades/${trade.id}/direct`, { method: 'POST', body: JSON.stringify({ noticeAccepted: true, scheduledAt, place, paymentMethod: 'personal_pi_wallet' }) }); await refresh(); } catch (error) { alert(error.message); } });
   $('actionDirectComplete')?.addEventListener('click', async () => { if (!confirm('직거래 완료를 표시할까요? 상대방도 완료해야 최종 완료됩니다.')) return; try { await api(`/api/v1/trades/${trade.id}/direct/complete`, { method: 'POST' }); await refresh(); } catch (error) { alert(error.message); } });
   $('actionDirectCancel')?.addEventListener('click', async () => { const reason = prompt('취소 사유'); if (reason === null) return; try { await api(`/api/v1/trades/${trade.id}/direct/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }); await refresh(); } catch (error) { alert(error.message); } });
+  $('actionCancelTrade')?.addEventListener('click', async () => { const reason = prompt('결제 전 거래 취소 사유'); if (reason === null) return; try { await api(`/api/v1/trades/${trade.id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }); await Promise.all([refresh(), loadNotifications()]); } catch (error) { alert(error.message); } });
   $('actionReview')?.addEventListener('click', async () => { const positive = confirm('좋은 거래였나요?\n확인: 긍정 / 취소: 보통'); const comment = prompt('후기 내용을 입력하세요'); if (!comment) return; try { await api(`/api/v1/trades/${trade.id}/reviews`, { method: 'POST', body: JSON.stringify({ sentiment: positive ? 'positive' : 'neutral', comment }) }); await Promise.all([refresh(), loadTrust()]); } catch (error) { alert(error.message); } });
   $('actionReport')?.addEventListener('click', async () => { const reason = prompt('신고 사유를 입력하세요'); if (!reason) return; try { await api('/api/v1/reports', { method: 'POST', body: JSON.stringify({ targetType: 'trade', targetId: trade.id, reason }) }); alert('신고가 접수됐습니다. 접수만으로 상대방 신뢰점수는 변경되지 않습니다.'); await loadNotifications(); } catch (error) { alert(error.message); } });
 }
 
-const legacyGasNotificationTypes = new Set([
-  'gas_compensation_paid',
-  'gas_debt_confirmed',
-  'gas_debt_paid',
-  'gas_debt_appealed',
-  'gas_debt_appeal_decided',
-  'settlement_debt_offset'
-]);
-
-function notificationView(item) {
-  if (!legacyGasNotificationTypes.has(item.type)) return item;
-  return {
-    ...item,
-    statusLabel: '과거 Testnet 기능시험 기록',
-    title: `[과거 기록] ${item.title}`,
-    body: `${item.body} · 현재 가스비 각자 부담 정책에서는 사용하지 않는 시험 기록입니다.`
-  };
-}
-
 async function loadNotifications() {
-  const { items } = await api('/api/v1/notifications');
+  const { items, unreadCount } = await api('/api/v1/notifications');
+  $('notificationBadge').textContent = unreadCount > 99 ? '99+' : String(unreadCount);
+  $('notificationBadge').classList.toggle('hidden', unreadCount === 0);
+  $('notificationBell').setAttribute('aria-label', `알림함 열기 · 읽지 않은 알림 ${unreadCount}개`);
+  const legacyGasNotificationTypes = new Set(['gas_compensation_paid', 'gas_debt_confirmed', 'gas_debt_paid', 'gas_debt_appealed', 'gas_debt_appeal_decided', 'settlement_debt_offset']);
+  const notificationView = (item) => legacyGasNotificationTypes.has(item.type) ? { ...item, statusLabel: '과거 Testnet 기능시험 기록', title: `[과거 기록] ${item.title}`, body: `${item.body} · 현재 가스비 각자 부담 정책에서는 사용하지 않는 시험 기록입니다.` } : item;
   $('notifications').innerHTML = items.length ? items.slice(0, 20).map(notificationView).map((item) => `<button class="management-card ${item.readAt ? '' : 'unread'}" data-notification="${escapeHtml(item.id)}"><div><small>${escapeHtml(item.statusLabel || (item.readAt ? '읽음' : '새 알림'))}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p></div></button>`).join('') : '<p class="empty">새로운 알림이 없습니다.</p>';
-  document.querySelectorAll('[data-notification]').forEach((button) => button.addEventListener('click', async () => { try { await api(`/api/v1/notifications/${button.dataset.notification}/read`, { method: 'POST' }); await loadNotifications(); } catch (error) { alert(error.message); } }));
+  const chatNotificationTypes = new Set(['chat_message', 'price_proposal', 'price_proposal_accept', 'price_proposal_reject', 'price_proposal_cancel', 'agreement_updated', 'agreement_confirmed', 'direct_wallet_registered']);
+  document.querySelectorAll('[data-notification]').forEach((button) => button.addEventListener('click', async () => { try { const item = items.find((entry) => entry.id === button.dataset.notification); await api(`/api/v1/notifications/${button.dataset.notification}/read`, { method: 'POST' }); if (item?.relatedId && chatNotificationTypes.has(item.type)) { $('chatPanel').classList.remove('hidden'); await openChat(item.relatedId); } await Promise.all([loadNotifications(), loadChats()]); } catch (error) { alert(error.message); } }));
 }
 
 async function loadAnnouncements(markRead = false) {
-  const { items } = await api('/api/v1/announcements');
-  const unreadCount = items.filter((item) => !item.read).length;
-  $('notificationBadge').textContent = unreadCount > 99 ? '99+' : String(unreadCount);
-  $('notificationBadge').classList.toggle('hidden', unreadCount === 0);
-  $('announcements').innerHTML = items.length ? items.map((item) => `<article class="management-card ${item.read ? '' : 'unread'}"><div><small>${item.mandatory ? '필수 확인 공지' : (item.read ? '확인한 관리팀 알림' : '새 관리팀 알림')}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p><p class="meta">${escapeHtml(new Date(item.createdAt).toLocaleString())}</p></div></article>`).join('') : '<p class="empty">현재 게시된 관리팀 알림이 없습니다.</p>';
-  if (markRead && unreadCount) {
+  if (!state.user) return;
+  const { items, unreadCount } = await api('/api/v1/announcements');
+  state.mandatoryAnnouncements = items.filter((item) => item.mandatory && !item.read);
+  $('announcementBadge').textContent = String(unreadCount || 0);
+  $('announcementBadge').classList.toggle('hidden', !unreadCount);
+  $('announcements').innerHTML = items.length ? items.map((item) => `<article class="management-card ${item.read ? '' : 'unread'}"><div><small>${item.mandatory ? '필수 확인 공지' : (item.read ? '확인한 운영 공지' : '새 운영 공지')}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body)}</p><p class="meta">${escapeHtml(new Date(item.createdAt).toLocaleString())}</p></div></article>`).join('') : '<p class="empty">현재 게시된 운영 공지가 없습니다.</p>';
+  if (markRead && items.some((item) => !item.mandatory && !item.read)) {
     await api('/api/v1/announcements/read-all', { method: 'POST', body: '{}' });
     return loadAnnouncements(false);
   }
-  state.mandatoryAnnouncements = items.filter((item) => item.mandatory && !item.read);
   renderMandatoryAnnouncementGate();
-  return items.length;
 }
 
 function renderMandatoryAnnouncementGate() {
@@ -1034,7 +795,7 @@ function renderMandatoryAnnouncementGate() {
   if (!item) return;
   $('mandatoryAnnouncementTitle').textContent = item.title;
   $('mandatoryAnnouncementBody').textContent = item.body;
-  $('mandatoryAnnouncementProgress').textContent = state.mandatoryAnnouncements.length > 1 ? `필수 공지 ${state.mandatoryAnnouncements.length}건이 남았습니다.` : '확인해야 앱을 계속 사용할 수 있습니다.';
+  $('mandatoryAnnouncementProgress').textContent = `확인 대기 ${state.mandatoryAnnouncements.length}건`;
   $('mandatoryAnnouncementResult').textContent = '';
   $('acknowledgeMandatoryAnnouncement').disabled = false;
 }
@@ -1043,7 +804,6 @@ async function acknowledgeMandatoryAnnouncement() {
   const item = state.mandatoryAnnouncements[0];
   if (!item) return;
   $('acknowledgeMandatoryAnnouncement').disabled = true;
-  $('mandatoryAnnouncementResult').textContent = '확인 내용을 저장하고 있습니다.';
   try {
     await api(`/api/v1/announcements/${encodeURIComponent(item.id)}/acknowledge`, { method: 'POST', body: '{}' });
     await loadAnnouncements();
@@ -1051,6 +811,17 @@ async function acknowledgeMandatoryAnnouncement() {
     $('mandatoryAnnouncementResult').textContent = error.message;
     $('acknowledgeMandatoryAnnouncement').disabled = false;
   }
+}
+
+async function refreshLiveUpdates() {
+  if (!state.user || document.hidden) return;
+  await Promise.all([loadNotifications(), loadChats()]);
+  if (state.activeRoom && !$('chatDetail').classList.contains('hidden')) await openChat(state.activeRoom.id, false);
+}
+
+function startLiveUpdates() {
+  if (state.liveUpdateTimer) clearInterval(state.liveUpdateTimer);
+  state.liveUpdateTimer = setInterval(() => refreshLiveUpdates().catch(() => {}), 5000);
 }
 async function loadMyReports() {
   const { items } = await api('/api/v1/me/reports');
@@ -1067,17 +838,39 @@ async function loadGasDebts() {
 }
 async function loadGasCompensations() {
   const { items } = await api('/api/v1/me/gas-compensations');
-  $('gasCompensations').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${item.status === 'appeal_pending' ? '이의신청 검토 중' : item.status === 'confirmed' ? '내용 확인 완료' : '확인 필요'}</small><h3>가스비 보상 ${escapeHtml(item.confirmedAmount)} Pi</h3><p>회수 ${escapeHtml(item.recoveredAmount)} Pi · 미회수 ${escapeHtml(item.unrecoveredAmount)} Pi · 현재 지급 가능 ${escapeHtml(item.currentlyPayableAmount)} Pi</p><p>회수된 보상금은 다른 지급과 합산하여 송금합니다.</p></div>${item.status === 'awaiting_confirmation' ? `<div class="card-actions"><button data-comp-confirm="${escapeHtml(item.id)}">내용 확인 및 지급 진행</button><button data-comp-appeal="${escapeHtml(item.id)}">이의신청</button></div>` : ''}</article>`).join('') : '<p class="empty">가스비 보상 안내가 없습니다.</p>';
-  document.querySelectorAll('[data-comp-confirm]').forEach((button) => button.addEventListener('click', async () => { try { await api(`/api/v1/gas-compensations/${button.dataset.compConfirm}/confirm`, { method:'POST', body:'{}' }); await loadGasCompensations(); } catch(error) { alert(error.message); } }));
-  document.querySelectorAll('[data-comp-appeal]').forEach((button) => button.addEventListener('click', async () => { const reason=prompt('보상 계산 이의신청 사유'); if(!reason?.trim()) return; try { await api(`/api/v1/gas-compensations/${button.dataset.compAppeal}/appeal`, { method:'POST', body:JSON.stringify({reason}) }); await loadGasCompensations(); } catch(error) { alert(error.message); } }));
+  $('gasCompensations').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(item.status)}</small><h3>지급 가능 ${escapeHtml(item.currentlyPayableAmount)} Test-Pi</h3><p>확정 ${escapeHtml(item.confirmedAmount)} · 회수 ${escapeHtml(item.recoveredAmount)} · 미회수 ${escapeHtml(item.unrecoveredAmount)}</p></div><div class="actions">${item.status === 'awaiting_confirmation' ? `<button class="primary" data-comp-confirm="${escapeHtml(item.id)}">내용 확인</button><button class="secondary" data-comp-appeal="${escapeHtml(item.id)}">계산 이의신청</button>` : ''}</div></article>`).join('') : '<p class="empty">가스비 보상 내역이 없습니다.</p>';
+  $('gasCompensations').querySelectorAll('[data-comp-confirm]').forEach((button) => button.addEventListener('click', async () => { try { await api(`/api/v1/gas-compensations/${encodeURIComponent(button.dataset.compConfirm)}/confirm`, { method: 'POST', body: '{}' }); await loadGasCompensations(); } catch (error) { alert(error.message); } }));
+  $('gasCompensations').querySelectorAll('[data-comp-appeal]').forEach((button) => button.addEventListener('click', async () => { const reason = prompt('보상 계산 이의신청 사유'); if (!reason?.trim()) return; try { await api(`/api/v1/gas-compensations/${encodeURIComponent(button.dataset.compAppeal)}/appeal`, { method: 'POST', body: JSON.stringify({ reason }) }); await loadGasCompensations(); } catch (error) { alert(error.message); } }));
 }
-async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadNotifications(), loadMyReports(), loadTrust()]); }
+
+async function loadMySuggestions() {
+  if (!state.user) return;
+  const { items } = await api('/api/v1/me/suggestions');
+  $('mySuggestions').innerHTML = items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(item.category)} · ${escapeHtml(item.status)}</small><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.content)}</p>${item.decision ? `<p class="admin-decision">처리 결과: ${escapeHtml(item.decision.reason)}</p>` : ''}</div></article>`).join('') : '<p class="empty">접수한 문의·건의가 없습니다.</p>';
+}
+
+async function submitSuggestion(event) {
+  event.preventDefault();
+  if (!state.user) return alert('Pi Testnet 로그인 후 문의할 수 있습니다.');
+  try {
+    const { suggestion } = await api('/api/v1/suggestions', { method: 'POST', body: JSON.stringify({ category: $('suggestionCategory').value, title: $('suggestionSubject').value.trim(), content: $('suggestionContent').value.trim() }) });
+    $('suggestionResult').textContent = `접수되었습니다. 접수번호 ${suggestion.id}`;
+    $('suggestionForm').reset(); await loadMySuggestions();
+  } catch (error) { $('suggestionResult').textContent = error.message; }
+}
+
+async function loadMyMarket() { if (state.user) await Promise.all([loadMyProducts(), loadMyFavorites(), loadMyTrades(), loadNotifications(), loadMyReports(), loadTrust(), loadGasDebts(), loadGasCompensations()]); }
 function showManagement(type) {
   for (const name of ['Products', 'Favorites', 'Trades']) {
     const active = type === name.toLowerCase();
     $(`my${name}`).classList.toggle('hidden', !active);
     $(`showMy${name}`).classList.toggle('active', active);
   }
+}
+
+function showFeaturePanel(panelId) {
+  $(panelId).classList.remove('hidden');
+  $(panelId).scrollIntoView({ behavior: 'smooth' });
 }
 
 async function toggleFavorite() {
@@ -1100,39 +893,69 @@ async function reportSelectedProduct() {
 
 async function loadChats() {
   const { items } = await api('/api/v1/me/chat-rooms');
-  $('chatRooms').innerHTML = items.length ? items.map((room) => `<button class="management-card trade-card" data-room="${escapeHtml(room.id)}"><div><small>${room.myRole === 'buyer' ? '구매 문의' : '판매 문의'} · ${escapeHtml(room.status)}</small><h3>${escapeHtml(room.product?.title || '상품정보 없음')}</h3><p>${escapeHtml(room.lastMessage?.content || '새 채팅방')}</p></div><span>열기 ›</span></button>`).join('') : '<p class="empty">참여 중인 채팅이 없습니다.</p>';
+  $('chatRooms').innerHTML = items.length ? items.map((room) => `<button class="management-card trade-card ${room.unreadCount ? 'unread' : ''}" data-room="${escapeHtml(room.id)}"><div><small>${room.myRole === 'buyer' ? '구매 문의' : '판매 문의'} · ${escapeHtml(room.status)}${room.unreadCount ? ` · 새 메시지 ${room.unreadCount}` : ''}</small><h3>${escapeHtml(room.product?.title || '상품정보 없음')}</h3><p>${escapeHtml(room.lastMessage?.content || '새 채팅방')}</p></div><span>${room.unreadCount ? `<strong class="room-unread-badge">${room.unreadCount > 99 ? '99+' : room.unreadCount}</strong>` : ''} 열기 ›</span></button>`).join('') : '<p class="empty">참여 중인 채팅이 없습니다.</p>';
   document.querySelectorAll('[data-room]').forEach((button) => button.addEventListener('click', () => openChat(button.dataset.room).catch((error) => alert(error.message))));
 }
 
-async function openChat(roomId) {
-  const data = await api(`/api/v1/chat-rooms/${roomId}`); state.activeRoom = data.room; state.agreement = data.agreement; state.activeChatProduct = data.product;
-  $('chatTitle').textContent = data.product?.title || state.products.find((item) => item.id === data.room.productId)?.title || '거래 채팅';
+async function openChat(roomId, shouldScroll = true) {
+  const data = await api(`/api/v1/chat-rooms/${roomId}`); state.activeRoom = data.room; state.agreement = data.agreement; state.activeDirectWalletAddress = data.directWalletAddress;
+  await api(`/api/v1/chat-rooms/${roomId}/read`, { method: 'POST' });
+  $('chatTitle').textContent = data.product?.title || '거래 채팅';
   $('chatMessages').innerHTML = data.messages.length ? data.messages.map((message) => `<p class="${message.senderId === state.user.id ? 'mine' : ''}">${escapeHtml(message.content)}</p>`).join('') : '<p class="empty">첫 메시지를 보내보세요.</p>';
+  const proposalStatus = { pending: '대기', accepted: '수락', rejected: '거절', cancelled: '취소', expired: '만료' };
+  $('proposalBox').innerHTML = data.proposals.length ? data.proposals.slice().reverse().map((proposal) => `<article class="management-card"><div><small>${proposal.proposerId === state.user.id ? '내 제안' : '상대방 제안'} · ${proposalStatus[proposal.status] || proposal.status}</small><strong>${escapeHtml(proposal.price)} Test-Pi</strong></div><div class="card-actions">${proposal.status === 'pending' && proposal.recipientId === state.user.id ? `<button data-proposal-action="accept" data-proposal-id="${escapeHtml(proposal.id)}">수락</button><button data-proposal-action="reject" data-proposal-id="${escapeHtml(proposal.id)}">거절</button>` : ''}${proposal.status === 'pending' && proposal.proposerId === state.user.id ? `<button data-proposal-action="cancel" data-proposal-id="${escapeHtml(proposal.id)}">취소</button>` : ''}</div></article>`).join('') : '<p class="empty">가격 제안이 없습니다.</p>';
   const agreement = data.agreement;
+  const buyerConfirmed = Boolean(agreement?.buyerConfirmedAt); const sellerConfirmed = Boolean(agreement?.sellerConfirmedAt);
+  const directWalletReady = agreement?.type !== 'direct' || data.product?.directWalletAvailable;
+  const directBuyerCanStart = agreement?.type !== 'direct' || data.room.buyerId === state.user.id;
+  const canCreateTrade = buyerConfirmed && sellerConfirmed && directWalletReady && directBuyerCanStart;
+  const waitingForBuyer = agreement?.type === 'direct' && buyerConfirmed && sellerConfirmed && directWalletReady && !directBuyerCanStart;
+  $('agreementBox').innerHTML = agreement ? `<p><strong>${escapeHtml(agreement.price)} Test-Pi · ${agreement.type === 'direct' ? '직거래' : 'Testnet 택배'}</strong></p><p>구매자 ${buyerConfirmed ? '확인' : '대기'} · 판매자 ${sellerConfirmed ? '확인' : '대기'}</p><button id="confirmAgreement" class="primary">이 조건 확인</button>${buyerConfirmed && sellerConfirmed && !directWalletReady ? '<p class="form-notice">조건 확인이 끝났습니다. 판매자가 직거래 지갑주소를 등록하면 거래를 시작할 수 있습니다.</p>' : ''}${waitingForBuyer ? '<p class="form-notice">지갑주소가 등록됐습니다. 구매자가 주소를 확인하고 거래를 시작할 때까지 기다려주세요.</p>' : ''}${canCreateTrade ? `<button id="createTrade" class="secondary">${agreement.type === 'direct' ? '주소 확인 후 직거래 시작' : '거래 시작'}</button>` : ''}` : '<p>아직 제안된 거래조건이 없습니다.</p>';
+  const acceptedProposal = data.proposals.slice().reverse().find((proposal) => proposal.status === 'accepted');
+  $('agreementPrice').value = agreement?.price || acceptedProposal?.price || data.product?.price || '';
+  $('agreementType').innerHTML = (data.product?.methods || []).map((type) => `<option value="${type}">${type === 'direct' ? '직거래' : 'Testnet 택배'}</option>`).join('');
+  if (agreement?.type) $('agreementType').value = agreement.type;
   const isSeller = data.room.sellerId === state.user.id;
-  const directControl = !data.tradeCreated && isSeller ? `<button id="switchAgreementDirect" class="secondary">${data.product?.directWalletAvailable ? '직거래 지갑 변경' : '직거래로 변경·지갑 등록'}</button>` : '';
-  $('agreementBox').innerHTML = agreement ? `<p><strong>${escapeHtml(agreement.price)} Test-Pi · <span>${agreement.type === 'direct' ? '직거래' : 'Testnet 택배'}</span></strong></p><p><span>구매자</span> <span>${agreement.buyerConfirmed ? '확인' : '대기'}</span> · <span>판매자</span> <span>${agreement.sellerConfirmed ? '확인' : '대기'}</span></p>${data.tradeCreated ? '<p class="form-notice">거래가 생성되어 거래방법을 변경할 수 없습니다.</p>' : `<button id="confirmAgreement" class="primary">이 조건 확인</button>${agreement.buyerConfirmed && agreement.sellerConfirmed ? '<button id="createTrade" class="secondary">거래 시작</button>' : ''}${directControl}`}` : `<p>아직 제안된 거래조건이 없습니다.</p>${directControl}`;
+  if (data.directWalletAddress) {
+    $('directWalletBox').innerHTML = `<p><strong>직거래 Pi 지갑</strong></p><p class="form-notice">주소를 복사한 뒤 공식 Pi Wallet을 열어 보내기 화면에 붙여넣으세요. 송금 전 주소와 금액을 다시 확인하세요.</p><code>${escapeHtml(data.directWalletAddress)}</code><div class="card-actions"><button id="copyDirectWallet" class="primary" type="button">지갑주소 복사</button><a class="secondary button-link" href="https://wallet.pinet.com" target="_blank" rel="noopener noreferrer">Pi Wallet 열기</a></div>`;
+  } else if (isSeller && agreement?.type === 'direct' && buyerConfirmed && sellerConfirmed) {
+    $('directWalletBox').innerHTML = `<p><strong>직거래 지갑 설정</strong></p><p class="form-notice">직거래를 사용하려면 본인의 Pi 지갑주소를 등록하세요. 주소는 합의 당사자가 직거래 조건을 모두 확인한 뒤에만 공개됩니다.</p><form id="directWalletForm" class="message-form"><input id="directWalletAddress" minlength="56" maxlength="56" autocomplete="off" placeholder="G로 시작하는 Pi 지갑주소" required><button class="secondary">주소 등록</button></form>`;
+  } else if (isSeller) {
+    $('directWalletBox').innerHTML = `<p><strong>직거래 Pi 지갑</strong></p><p class="form-notice">구매자와 판매자가 직거래 조건을 모두 확인하면 지갑주소 등록란이 표시됩니다.</p>`;
+  } else {
+    $('directWalletBox').innerHTML = `<p><strong>직거래 Pi 지갑</strong></p><p class="form-notice">판매자가 지갑주소를 등록하고 양쪽이 직거래 조건을 모두 확인하면 복사 버튼이 표시됩니다.</p>`;
+  }
   $('chatDetail').classList.remove('hidden');
+  document.querySelectorAll('[data-proposal-action]').forEach((button) => button.addEventListener('click', () => actOnProposal(button.dataset.proposalId, button.dataset.proposalAction).catch((error) => alert(error.message))));
   $('confirmAgreement')?.addEventListener('click', () => confirmCurrentAgreement().catch((error) => alert(error.message)));
   $('createTrade')?.addEventListener('click', () => createCurrentTrade().catch((error) => alert(error.message)));
-  $('switchAgreementDirect')?.addEventListener('click', () => switchAgreementToDirect().catch((error) => alert(error.message)));
-  $('chatDetail').scrollIntoView({ behavior: 'smooth' });
+  $('directWalletForm')?.addEventListener('submit', (event) => registerDirectWallet(event).catch((error) => alert(error.message)));
+  $('copyDirectWallet')?.addEventListener('click', () => copyDirectWallet(data.directWalletAddress).catch((error) => alert(error.message)));
+  if (shouldScroll) $('chatDetail').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function registerDirectWallet(event) {
+  event.preventDefault();
+  if (!state.activeRoom) return;
+  const walletAddress = $('directWalletAddress').value.trim();
+  await api(`/api/v1/chat-rooms/${state.activeRoom.id}/direct-wallet`, { method: 'POST', body: JSON.stringify({ walletAddress }) });
+  alert('직거래 지갑주소가 등록됐습니다. 거래 당사자가 직거래 조건을 모두 확인한 뒤 공개됩니다.');
+  await openChat(state.activeRoom.id, false);
+}
+
+async function copyDirectWallet(walletAddress) {
+  if (!walletAddress) throw new Error('복사할 지갑주소가 없습니다.');
+  if (!navigator.clipboard?.writeText) throw new Error('이 브라우저에서는 자동 복사를 지원하지 않습니다. 주소를 길게 눌러 복사하세요.');
+  await navigator.clipboard.writeText(walletAddress);
+  alert('지갑주소를 복사했습니다. Pi Wallet 보내기 화면에 붙여넣으세요.');
 }
 
 async function confirmCurrentAgreement() { await api(`/api/v1/agreements/${state.agreement.id}/confirm`, { method: 'POST' }); await openChat(state.activeRoom.id); await loadChats(); }
-async function switchAgreementToDirect() {
-  if (!state.activeRoom || state.activeRoom.sellerId !== state.user.id) throw new Error('판매자만 직거래 지갑을 등록할 수 있습니다.');
-  const walletAddress = prompt('직거래에 사용할 판매자 Pi 지갑주소를 입력하세요.');
-  if (!walletAddress?.trim()) return;
-  await api(`/api/v1/chat-rooms/${state.activeRoom.id}/direct-wallet`, { method: 'POST', body: JSON.stringify({ walletAddress: walletAddress.trim() }) });
-  const price = state.agreement?.price || state.activeChatProduct?.price;
-  if (!price) throw new Error('거래금액을 확인할 수 없습니다.');
-  await api(`/api/v1/chat-rooms/${state.activeRoom.id}/agreements`, { method: 'POST', body: JSON.stringify({ price, type: 'direct' }) });
-  alert('직거래로 변경했습니다. 구매자와 판매자가 변경된 조건을 다시 확인해야 합니다.');
-  await Promise.all([openChat(state.activeRoom.id), loadChats()]);
-}
-async function createCurrentTrade() { const result = await api(`/api/v1/agreements/${state.agreement.id}/trades`, { method: 'POST' }); state.trade = result.trade; alert('거래가 생성됐습니다. 내 거래에서 진행상태를 확인하세요.'); await Promise.all([loadMyTrades(), openChat(state.activeRoom.id)]); }
+async function createCurrentTrade() { const direct = state.agreement?.type === 'direct'; if (direct && !confirm('화면에 표시된 판매자 지갑주소를 확인했습니까? 이 확인은 실제 송금 완료를 의미하지 않습니다.')) return; const result = await api(`/api/v1/agreements/${state.agreement.id}/trades`, { method: 'POST', body: JSON.stringify(direct ? { walletAddressConfirmed: true, walletAddress: state.activeDirectWalletAddress } : {}) }); state.trade = result.trade; alert('거래가 생성됐습니다. 내 거래에서 진행상태를 확인하세요.'); await Promise.all([loadMyTrades(), openChat(state.activeRoom.id)]); }
 async function sendMessage(event) { event.preventDefault(); if (!state.activeRoom) return; await api(`/api/v1/chat-rooms/${state.activeRoom.id}/messages`, { method: 'POST', body: JSON.stringify({ content: $('messageText').value }) }); $('messageText').value = ''; await Promise.all([openChat(state.activeRoom.id), loadChats()]); }
+async function sendPriceProposal(event) { event.preventDefault(); if (!state.activeRoom) return; await api(`/api/v1/chat-rooms/${state.activeRoom.id}/price-proposals`, { method: 'POST', body: JSON.stringify({ price: Number($('proposalPrice').value) }) }); $('proposalPrice').value = ''; await openChat(state.activeRoom.id); }
+async function actOnProposal(proposalId, action) { await api(`/api/v1/price-proposals/${proposalId}/${action}`, { method: 'POST' }); await openChat(state.activeRoom.id); }
+async function proposeAgreement(event) { event.preventDefault(); if (!state.activeRoom) return; const { agreement } = await api(`/api/v1/chat-rooms/${state.activeRoom.id}/agreements`, { method: 'POST', body: JSON.stringify({ price: Number($('agreementPrice').value), type: $('agreementType').value }) }); state.agreement = agreement; await openChat(state.activeRoom.id); }
 
 async function preparePayment() {
   if (!state.trade || state.trade.type !== 'parcel_testnet') return;
@@ -1173,49 +996,20 @@ async function runChecklistPayment() {
 
 async function health() {
   try {
-    const [status, ready] = await Promise.all([api('/api/v1/health'), api('/api/v1/ready')]);
-    $('health').textContent = status.network === 'testnet' && ready.storage === 'postgres' ? 'Testnet·DB 정상' : '설정 확인 필요';
-    $('health').title = `배포 ${ready.revision}`;
+    const [status, ready, config] = await Promise.all([api('/api/v1/health'), api('/api/v1/ready'), api('/api/v1/config')]);
+    const launchReady = status.network === 'testnet' && ready.storage === 'postgres' && config.sandbox === true && config.piServerConnected === true;
+    $('health').textContent = launchReady ? 'Testnet·Pi·DB 정상' : '출시 설정 확인 필요';
+    $('health').title = `배포 ${ready.revision} · Pi 서버 ${config.piServerConnected ? '연결 설정됨' : '키 미설정'} · 저장소 ${ready.storage}`;
   } catch (error) {
     $('health').textContent = '서버 점검 필요';
     $('health').title = error.message;
   }
 }
 
-async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); clearDailySession(); state.user = null; state.sessionToken = null; state.activeRoom = null; state.activeChatProduct = null; state.editingProduct = null; state.mandatoryAnnouncements = []; renderMandatoryAnnouncementGate(); $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('piLogin').classList.remove('hidden'); $('notificationBadge').classList.add('hidden'); $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>'; ['myPanel', 'chatPanel', 'registerPanel', 'editProductPanel'].forEach((id) => $(id).classList.add('hidden')); }
-
-async function submitSuggestion(event) {
-  event.preventDefault();
-  if (!state.user) {
-    $('suggestionResult').textContent = 'Pi Testnet 로그인 후 건의사항을 보낼 수 있습니다.';
-    return;
-  }
-  try {
-    const { suggestion } = await api('/api/v1/suggestions', { method: 'POST', body: JSON.stringify({ category: $('suggestionCategory').value, title: $('suggestionSubject').value.trim(), content: $('suggestionContent').value.trim() }) });
-    $('suggestionSubject').value = '';
-    $('suggestionContent').value = '';
-    $('suggestionResult').textContent = `문의가 접수되었습니다. 접수번호 ${suggestion.id}`;
-    await Promise.all([loadNotifications(), loadMySuggestions()]);
-  } catch (error) { $('suggestionResult').textContent = error.message; }
-}
-
-async function loadMySuggestions() {
-  if (!state.user) {
-    $('mySuggestions').innerHTML = '<p class="empty">Pi Testnet 로그인 후 내 문의 내역을 확인할 수 있습니다.</p>';
-    return 0;
-  }
-  const { items } = await api('/api/v1/me/suggestions');
-  $('mySuggestions').innerHTML = items.length ? items.map((item) => `
-    <article class="management-card">
-      <div><strong>${escapeHtml(item.title || '기존 건의사항')}</strong><p class="meta">${escapeHtml(suggestionCategoryNames[item.category] || '건의사항')} · ${item.status === 'closed' ? '답변 완료' : '접수'}</p></div>
-      <p>${escapeHtml(item.content)}</p>
-      ${item.decision ? `<p class="admin-decision"><strong>관리자 답변</strong><br>${escapeHtml(item.decision.reason)}</p>` : '<p class="meta">관리자가 내용을 확인하고 있습니다.</p>'}
-      <p class="meta qna-reference" title="${escapeHtml(item.id)}">접수번호 ${escapeHtml(shortReference(item.id))}<br>${escapeHtml(new Date(item.createdAt).toLocaleString())}</p>
-    </article>`).join('') : '<p class="empty">접수한 문의가 없습니다.</p>';
-  return items.length;
-}
+async function logout() { await api('/api/v1/auth/logout', { method: 'POST' }); if (state.liveUpdateTimer) clearInterval(state.liveUpdateTimer); state.liveUpdateTimer = null; state.user = null; state.sessionToken = null; state.onboardingRequired = false; state.activeRoom = null; state.editingProduct = null; state.mandatoryAnnouncements = []; renderMandatoryAnnouncementGate(); $('authState').textContent = '로그인 전'; $('logout').classList.add('hidden'); $('checklistPayment').classList.add('hidden'); $('notificationBell').classList.add('hidden'); $('notificationBadge').classList.add('hidden'); $('headerAnnouncements').classList.add('hidden'); $('announcementBadge').classList.add('hidden'); $('piLogin').classList.remove('hidden'); ['onboardingPanel', 'myPanel', 'chatPanel', 'registerPanel', 'editProductPanel', 'announcementPanel'].forEach((id) => $(id).classList.add('hidden')); }
 
 $('piLogin').addEventListener('click', () => loginPi().catch((error) => alert(error.message)));
+$('onboardingForm').addEventListener('submit', completeOnboarding);
 $('logout').addEventListener('click', () => logout().catch((error) => alert(error.message)));
 $('checklistPayment').addEventListener('click', () => runChecklistPayment().catch((error) => alert(error.message)));
 $('closeProductDetail').addEventListener('click', () => { $('productDetailPanel').classList.add('hidden'); state.selectedProduct = null; });
@@ -1232,54 +1026,42 @@ $('refreshMy').addEventListener('click', () => loadMyMarket().catch((error) => a
 $('showMyProducts').addEventListener('click', () => showManagement('products'));
 $('showMyFavorites').addEventListener('click', () => showManagement('favorites'));
 $('showMyTrades').addEventListener('click', () => showManagement('trades'));
-$('navHome').addEventListener('click', showHome);
-$('navSearch').addEventListener('click', showSearch);
-$('headerHome').addEventListener('click', showHome);
-$('headerSearch').addEventListener('click', showSearch);
-$('languageToggle').addEventListener('click', toggleLanguage);
-$('headerNotifications').addEventListener('click', () => {
-  if (!state.user) return alert('Pi Testnet 로그인 후 관리팀 알림을 확인할 수 있습니다.');
-  showFeaturePanel('announcementPanel');
-  loadAnnouncements(true).catch((error) => alert(error.message));
-});
-$('acknowledgeMandatoryAnnouncement').addEventListener('click', acknowledgeMandatoryAnnouncement);
+$('navHome').addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+$('navSearch').addEventListener('click', () => $('products').scrollIntoView({ behavior: 'smooth' }));
 $('navRegister').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 등록할 수 있습니다.'); showFeaturePanel('registerPanel'); });
-$('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('chatPanel'); loadChats().catch((error) => alert(error.message)); });
-$('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); showFeaturePanel('myPanel'); loadMyMarket().catch((error) => alert(error.message)); });
-$('homeRegister').addEventListener('click', () => $('navRegister').click());
-$('homeMy').addEventListener('click', () => $('navMy').click());
-$('homeQna').addEventListener('click', () => { showFeaturePanel('suggestionPanel'); loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }); });
-$('categoryFilters').addEventListener('click', () => { $('searchForm').classList.toggle('hidden'); if (!$('searchForm').classList.contains('hidden')) $('searchForm').scrollIntoView({ behavior: 'auto', block: 'start' }); });
-$('categoryHome').addEventListener('click', showHome);
-$('openAdmin').addEventListener('click', () => showFeaturePanel('adminPanel'));
-$('closeAdmin').addEventListener('click', () => { stopAdminAlertPolling(); state.adminKey = null; $('adminKey').value = ''; $('adminUsers').innerHTML = ''; $('adminProducts').innerHTML = ''; $('adminPopular').innerHTML = ''; $('adminReports').innerHTML = ''; $('adminDisputes').innerHTML = ''; $('adminSuggestions').innerHTML = ''; $('adminGasDebts').innerHTML = ''; $('adminAudit').innerHTML = ''; $('adminAlerts').innerHTML = ''; $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
+$('navChat').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('chatPanel').classList.remove('hidden'); loadChats().then(() => $('chatPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
+$('navMy').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 이용할 수 있습니다.'); $('myPanel').classList.remove('hidden'); loadMyMarket().then(() => $('myPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
+$('notificationBell').addEventListener('click', () => { if (!state.user) return; $('myPanel').classList.remove('hidden'); loadNotifications().then(() => $('notifications').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
+$('headerAnnouncements').addEventListener('click', () => { if (!state.user) return; $('announcementPanel').classList.remove('hidden'); loadAnnouncements(true).then(() => $('announcementPanel').scrollIntoView({ behavior: 'smooth' })).catch((error) => alert(error.message)); });
+$('acknowledgeMandatoryAnnouncement').addEventListener('click', acknowledgeMandatoryAnnouncement);
+$('openSuggestions').addEventListener('click', () => { $('suggestionPanel').classList.remove('hidden'); if (state.user) loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }); $('suggestionPanel').scrollIntoView({ behavior: 'smooth' }); });
+$('suggestionForm').addEventListener('submit', submitSuggestion);
+$('refreshSuggestions').addEventListener('click', () => { if (!state.user) return alert('Pi Testnet 로그인 후 확인할 수 있습니다.'); loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshLiveUpdates().catch(() => {}); });
+$('openAdmin').addEventListener('click', () => { $('adminPanel').classList.remove('hidden'); $('adminPanel').scrollIntoView({ behavior: 'smooth' }); });
+$('closeAdmin').addEventListener('click', () => { stopAdminAlertPolling(); state.adminKey = null; $('adminKey').value = ''; ['adminAlerts', 'adminUsers', 'adminProducts', 'adminPopular', 'adminPromotions', 'adminAnnouncements', 'adminTrades', 'adminReports', 'adminDisputes', 'adminSuggestions', 'adminGasDebts', 'adminAudit'].forEach((id) => { $(id).innerHTML = ''; }); $('adminResult').textContent = ''; $('adminWorkspace').classList.add('hidden'); $('adminSearchForm').classList.add('hidden'); $('adminUnlockForm').classList.remove('hidden'); $('adminPanel').classList.add('hidden'); });
 $('adminUnlockForm').addEventListener('submit', async (event) => { event.preventDefault(); state.adminKey = $('adminKey').value; try { const [, reportCount] = await Promise.all([loadAdminUsers(), loadAdminReports()]); $('adminUnlockForm').classList.add('hidden'); $('adminWorkspace').classList.remove('hidden'); showAdminSection('users'); $('adminKey').value = ''; await loadAdminDashboard(); startAdminAlertPolling(); $('adminResult').textContent = `관리자 확인 완료 · 접수된 신고 ${reportCount}건`; } catch (error) { stopAdminAlertPolling(); state.adminKey = null; $('adminResult').textContent = error.message; } });
 $('adminSearchForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await loadAdminUsers(); } catch (error) { $('adminResult').textContent = error.message; } });
 $('clearAdminSearch').addEventListener('click', () => { $('adminUserQuery').value = ''; $('adminUserStatus').value = ''; loadAdminUsers().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminUsers').addEventListener('click', () => showAdminSection('users'));
 $('showAdminProducts').addEventListener('click', () => { showAdminSection('products'); loadAdminProducts().then((count) => { $('adminResult').textContent = `상품 검토 대기 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
-$('showAdminPopular').addEventListener('click', () => { showAdminSection('popular'); loadAdminPopularProducts().then((count) => { $('adminResult').textContent = `선정 가능한 판매 중 상품 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
+$('showAdminPopular').addEventListener('click', () => { showAdminSection('popular'); loadAdminPopular().then((count) => { $('adminResult').textContent = `추천상품 관리 대상 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminPromotions').addEventListener('click', () => { showAdminSection('promotions'); loadAdminPromotions().then((count) => { $('adminResult').textContent = `광고·협찬 계약 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminAnnouncements').addEventListener('click', () => { showAdminSection('announcements'); loadAdminAnnouncements().then((count) => { $('adminResult').textContent = `게시 중인 운영 공지 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
+$('showAdminTrades').addEventListener('click', () => { showAdminSection('trades'); loadAdminTrades().then((count) => { $('adminResult').textContent = `거래·정산 기록 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminReports').addEventListener('click', () => { showAdminSection('reports'); loadAdminReports().catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminDisputes').addEventListener('click', () => { showAdminSection('disputes'); loadAdminDisputes().then((count) => { $('adminResult').textContent = `택배 안전거래 분쟁 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminSuggestions').addEventListener('click', () => { showAdminSection('suggestions'); loadAdminSuggestions().then((count) => { $('adminResult').textContent = `접수된 건의사항 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('showAdminGasDebts').addEventListener('click', () => { showAdminSection('gasDebts'); loadAdminGasDebts().then((count) => { $('adminResult').textContent = `미납 이의신청 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
-$('mockPayCompensations').addEventListener('click', async()=>{if(!confirm('소비자가 확인한 보상금을 합산해 Testnet 모의지급할까요? 플랫폼 가스비 0.01 Pi가 별도 기록됩니다.'))return;try{const {batch}=await adminApi('/api/v1/admin/gas-compensation-payouts/mock-batch',{method:'POST',body:'{}'});$('adminResult').textContent=`${batch.itemCount}건 · ${batch.totalAmount} Test-Pi 모의지급 완료`;await loadAdminAudit();}catch(error){$('adminResult').textContent=error.message;}});
+$('mockPayCompensations').addEventListener('click', async () => { if (!confirm('확인된 보상금을 실제 Pi 이동 없이 Testnet 모의 지급할까요?')) return; try { const { batch } = await adminApi('/api/v1/admin/gas-compensation-payouts/mock-batch', { method: 'POST', body: '{}' }); $('adminResult').textContent = `${batch.itemCount}건 · ${batch.totalAmount} Test-Pi 모의지급 완료`; await loadAdminAudit(); } catch (error) { $('adminResult').textContent = error.message; } });
 $('showAdminAudit').addEventListener('click', () => { showAdminSection('audit'); loadAdminAudit().then((count) => { $('adminResult').textContent = `안전하게 정리된 작업기록 ${count}건`; }).catch((error) => { $('adminResult').textContent = error.message; }); });
 $('productForm').addEventListener('submit', registerProduct);
-$('methodDirect').addEventListener('change', () => updateWalletFields());
-$('methodParcel').addEventListener('change', () => updateWalletFields());
 $('productImage').addEventListener('change', () => prepareSelectedImages('productImage', 'registerProductImages', 'registerImages', 'registerResult'));
 $('editProductForm').addEventListener('submit', saveProductEdit);
-$('editMethodDirect').addEventListener('change', () => updateWalletFields(true));
-$('editMethodParcel').addEventListener('change', () => updateWalletFields(true));
 $('editProductImage').addEventListener('change', () => prepareSelectedImages('editProductImage', 'editProductImages', 'editingImages', 'editProductResult'));
 $('cancelProductEdit').addEventListener('click', closeProductEdit);
 $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch((error) => alert(error.message)));
+$('priceProposalForm').addEventListener('submit', (event) => sendPriceProposal(event).catch((error) => alert(error.message)));
+$('agreementForm').addEventListener('submit', (event) => proposeAgreement(event).catch((error) => alert(error.message)));
 $('refreshChats').addEventListener('click', () => loadChats().catch((error) => alert(error.message)));
-$('suggestionForm').addEventListener('submit', submitSuggestion);
-$('refreshSuggestions').addEventListener('click', () => loadMySuggestions().catch((error) => { $('suggestionResult').textContent = error.message; }));
-translateUi();
-uiTranslationObserver.observe(document.body, { childList: true, subtree: true });
-initializeNavigationHistory(); health(); loadProducts(); loadPopularProducts(); loadCategories(); restoreSession();
+health(); loadProducts().then(loadPopularProducts); loadCategories(); restoreSession();

@@ -60,9 +60,10 @@ test('서버 승인 전에는 결제를 완료하지 않는다', () => {
 
 test('승인된 결제 완료 시 거래를 발송대기로 바꾼다', () => {
   const trade = parcelTrade(); const payment = { id: 'p1', status: 'approved', providerPaymentId: 'pi1', txid: null };
-  completePayment(payment, [payment], trade, 'tx1');
+  completePayment(payment, [payment], trade, 'tx1', new Date('2026-10-19T00:00:00.000Z'));
   assert.equal(payment.status, 'completed');
   assert.equal(trade.status, 'shipping_pending');
+  assert.equal(trade.shipBy, '2026-10-21T00:00:00.000Z');
 });
 
 test('동일 완료 요청은 한 번만 반영하고 다른 txid는 거부한다', () => {

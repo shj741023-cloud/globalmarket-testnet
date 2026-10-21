@@ -10,7 +10,7 @@ const html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
 const app = fs.readFileSync(path.join(publicDir, 'app.js'), 'utf8');
 
 test('관리자 회원 화면에 잠금·검색·상태변경 요소가 연결된다', () => {
-  for (const id of ['openAdmin', 'adminPanel', 'adminUnlockForm', 'adminKey', 'adminSearchForm', 'adminAlerts', 'adminDashboard', 'adminUsers', 'showAdminProducts', 'adminProducts', 'showAdminReports', 'adminReports', 'showAdminDisputes', 'adminDisputes', 'showAdminSuggestions', 'adminSuggestions', 'showAdminAudit', 'adminAudit']) {
+  for (const id of ['openAdmin', 'adminPanel', 'adminUnlockForm', 'adminKey', 'adminSearchForm', 'adminDashboard', 'adminUsers', 'showAdminProducts', 'adminProducts', 'showAdminTrades', 'adminTrades', 'showAdminReports', 'adminReports', 'showAdminDisputes', 'adminDisputes', 'showAdminGasDebts', 'adminGasDebts', 'showAdminAudit', 'adminAudit']) {
     assert.match(html, new RegExp(`id="${id}"`));
     assert.match(app, new RegExp(`\\$\\('${id}'\\)`));
   }
@@ -22,7 +22,7 @@ test('관리자 회원 화면에 잠금·검색·상태변경 요소가 연결�
   assert.match(app, /\/admin\/disputes/);
   assert.match(app, /\/admin\/product-reviews/);
   assert.match(app, /\/admin\/dashboard/);
-  assert.match(app, /\/admin\/suggestions/);
+  assert.match(app, /\/admin\/gas-debts/);
 });
 
 test('관리자 키는 브라우저 영구 저장소에 기록하지 않는다', () => {
@@ -30,9 +30,4 @@ test('관리자 키는 브라우저 영구 저장소에 기록하지 않는다',
   assert.doesNotMatch(app, /sessionStorage[^\n]*admin/i);
   assert.match(app, /state\.adminKey = null/);
   assert.match(html, /type="password"/);
-});
-
-test('건의사항 처리 버튼은 관리자 카드에서 진한 색으로 표시한다', () => {
-  const managementCss = fs.readFileSync(path.join(publicDir, 'management.css'), 'utf8');
-  assert.match(managementCss, /\.management-card\s*>\s*button\.primary\s*\{[^}]*background:\s*#132a22[^}]*color:\s*#fff/s);
 });

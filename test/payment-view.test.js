@@ -19,3 +19,11 @@ test('결제 완료 뒤 거래 상태를 새로고침하고 성공 문구를 표
   assert.match(app, /Test-Pi 결제가 완료되었습니다/);
   assert.match(app, /loadMyTrades\(\)\.catch/);
 });
+
+test('Pi 인증 콜백의 미완료 결제를 로그인 뒤 서버 완료 API로 복구한다', () => {
+  assert.match(app, /pendingPiPayments\.push\(payment\)/);
+  assert.match(app, /await recoverPendingPiPayments\(\)/);
+  assert.match(app, /transaction_verified/);
+  assert.match(app, /internalPaymentId/);
+  assert.match(app, /piPaymentId: providerPayment\.identifier, txid/);
+});

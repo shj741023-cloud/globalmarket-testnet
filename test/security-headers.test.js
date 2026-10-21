@@ -12,11 +12,11 @@ test('콘텐츠 보안 정책은 자체 자원과 공식 Pi 도메인만 허용�
   assert.doesNotMatch(CONTENT_SECURITY_POLICY, /frame-ancestors/);
 });
 
-test('모든 응답에 기본 보안 헤더를 제공한다', () => {
+test('모든 응답에 실제 차단되는 기본 보안 헤더를 제공한다', () => {
   const headers = securityHeaders();
   assert.equal(headers['X-Content-Type-Options'], 'nosniff');
   assert.equal(headers['Permissions-Policy'], 'camera=(), microphone=(), geolocation=()');
   assert.match(headers['Strict-Transport-Security'], /max-age=31536000/);
-  assert.equal(headers['Content-Security-Policy'], undefined);
-  assert.equal(headers['Content-Security-Policy-Report-Only'], CONTENT_SECURITY_POLICY);
+  assert.equal(headers['Content-Security-Policy'], CONTENT_SECURITY_POLICY);
+  assert.equal(headers['Content-Security-Policy-Report-Only'], undefined);
 });

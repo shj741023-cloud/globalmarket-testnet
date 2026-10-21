@@ -11,7 +11,9 @@ test('관리자 현황판은 개인정보 없이 운영 건수만 집계한다',
     reports: [{ status: 'received' }, { status: 'closed' }],
     suggestions: [{ status: 'received' }, { status: 'closed' }],
     disputes: [{ status: 'received' }],
-    gasDebts: [{ status: 'appeal_pending' }]
+    gasDebts: [{ status: 'appeal_pending' }],
+    trades: [{ id: 't1', status: 'purchase_confirmed', settlementHold: false }, { id: 't2', status: 'disputed', settlementHold: true }],
+    settlements: []
   });
   assert.deepEqual(summary.users, { total: 2, active: 1, suspended: 1 });
   assert.equal(summary.products.reviewPending, 1);
@@ -19,6 +21,7 @@ test('관리자 현황판은 개인정보 없이 운영 건수만 집계한다',
   assert.equal(summary.suggestions.open, 1);
   assert.equal(summary.disputes.open, 1);
   assert.equal(summary.gasDebts.appealPending, 1);
+  assert.deepEqual(summary.trades, { total: 2, settlementPending: 1, held: 1 });
   assert.equal(JSON.stringify(summary).includes('secret'), false);
 });
 
@@ -29,6 +32,7 @@ test('빈 상태도 모든 현황 값을 0으로 제공한다', () => {
     reports: { total: 0, open: 0 },
     suggestions: { total: 0, open: 0 },
     disputes: { total: 0, open: 0 },
-    gasDebts: { total: 0, appealPending: 0 }
+    gasDebts: { total: 0, appealPending: 0 },
+    trades: { total: 0, settlementPending: 0, held: 0 }
   });
 });

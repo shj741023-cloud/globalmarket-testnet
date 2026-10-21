@@ -25,3 +25,9 @@ test('첫 화면 필수 공지 차단창과 명시적 확인 버튼이 있다', 
   assert.match(app, /item\.mandatory && !item\.read/);
   assert.match(app, /renderMandatoryAnnouncementGate\(\)/);
 });
+
+test('운영 공지와 개인 거래 알림은 별도 화면으로 제공된다', () => {
+  assert.match(html, /id="headerAnnouncements"/);
+  assert.match(html, /id="notificationBell"/);
+  assert.match(html, /개인 거래 알림은 종 모양 알림함/);
+});

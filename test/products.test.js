@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { CATEGORIES, validateProductInput, searchProducts, updateOwnedProduct, changeOwnedProductStatus } = require('../lib/products');
+const { CATEGORIES, validateProductInput, searchProducts, updateOwnedProduct, changeOwnedProductStatus, deleteOwnedProduct } = require('../lib/products');
 
 const valid = {
   title: '중고 카메라',
@@ -10,7 +10,6 @@ const valid = {
   price: 25,
   categoryId: 'digital_devices',
   methods: ['direct', 'parcel_testnet'],
-  directWalletAddress: `G${'A'.repeat(55)}`,
   region: '서울'
 };
 
@@ -32,11 +31,6 @@ test('필수 정보와 허용 카테고리를 검증한다', () => {
 
 test('지원하지 않는 거래방식을 차단한다', () => {
   assert.throws(() => validateProductInput({ ...valid, methods: ['mainnet'] }), /거래방식/);
-});
-
-test('직거래 상품은 유효한 Pi 지갑주소가 필요하다', () => {
-  assert.throws(() => validateProductInput({ ...valid, directWalletAddress: '' }), /지갑주소/);
-  assert.equal(validateProductInput({ ...valid, methods: ['parcel_testnet'], directWalletAddress: '' }).value.directWalletAddress, '');
 });
 
 test('압축된 JPEG·PNG·WebP 상품 사진만 허용한다', () => {
@@ -130,4 +124,21 @@ test('진행 중 거래나 검토 중 상품의 판매재개를 차단한다', (
   assert.throws(() => changeOwnedProductStatus(product, 'seller', 'paused', true), /진행 중인 거래/);
   product.status = 'under_review';
   assert.throws(() => changeOwnedProductStatus(product, 'seller', 'available'), /검토 중/);
+});
+
+test('판매자 상품 삭제는 데이터를 보존한 채 deleted 상태로 전환한다', () => {
+  const product = { ...valid, sellerId: 'seller', status: 'available' };
+  const now = new Date('2026-10-17T00:00:00.000Z');
+  assert.throws(() => deleteOwnedProduct(product, 'other', false, now), /본인 상품/);
+  const result = deleteOwnedProduct(product, 'seller', false, now);
+  assert.equal(result.idempotent, false);
+  assert.equal(product.status, 'deleted');
+  assert.equal(product.deletedAt, now.toISOString());
+  assert.equal(deleteOwnedProduct(product, 'seller', false, now).idempotent, true);
+});
+
+test('진행 중 거래가 있는 상품 삭제를 차단한다', () => {
+  const product = { ...valid, sellerId: 'seller', status: 'reserved' };
+  assert.throws(() => deleteOwnedProduct(product, 'seller', true), /진행 중인 거래/);
+  assert.equal(product.status, 'reserved');
 });

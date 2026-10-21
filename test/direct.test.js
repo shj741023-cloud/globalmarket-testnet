@@ -41,7 +41,7 @@ test('완료 표시는 당사자별로 중복 반영하지 않는다', () => {
 test('완료 전에는 당사자가 직거래를 취소할 수 있다', () => {
   const trade = directTrade(); const record = createDirectRecord(trade, input);
   cancelDirect(trade, record, 'buyer', '일정 변경');
-  assert.equal(trade.status, 'canceled');
+  assert.equal(trade.status, 'cancelled');
 });
 
 test('직거래 기록에는 플랫폼 결제·정산·환불 필드가 없다', () => {
