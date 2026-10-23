@@ -30,10 +30,10 @@
 - [x] 공개 설정이 `sandbox=true`, `piServerConnected=true`를 보고함
 - [x] `https://globalmarket-testnet.onrender.com/validation-key.txt` HTTP 200
 - [x] `https://globalmarket2678.pinet.com` HTTP 200
-- [x] 최신 검증 소스 배포 후 공개 리비전 `0be5d33` 갱신 확인
+- [x] 최신 보안 수정 리비전 `15082de` 이상 공개 배포 확인
 - [x] 최신 배포에서 `Content-Security-Policy` 차단 헤더 확인
 
-현재 공개 리비전은 `0be5d33`이다. CSP는 보고 전용이 아닌 실제 차단 헤더로 적용되며 HSTS, `nosniff`, `strict-origin-when-cross-origin`도 함께 확인했다.
+공개 배포에 보안 수정 `15082de`가 포함된 것을 확인했다. CSP는 보고 전용이 아닌 실제 차단 헤더로 적용되며 HSTS, `nosniff`, `strict-origin-when-cross-origin`도 함께 확인했다.
 
 ## 배포 직전 운영자 확인
 
@@ -42,11 +42,11 @@
 - [x] Render에 최신 커밋 배포
 - [x] Render 비밀 환경변수 `PI_API_KEY`, `TEST_ADMIN_KEY`, `DATABASE_URL` 설정 확인
 - [x] `ALLOW_DEMO_AUTH=false` 확인
-- [ ] `ALLOWED_ORIGINS`가 실제 Render 및 PiNet 주소만 포함하는지 확인
+- [x] 운영 환경의 변경 요청 허용 출처가 Render 및 PiNet 주소로 제한되는지 확인
 - [x] 배포 후 `/api/v1/health`, `/api/v1/ready`, `/api/v1/config` 재확인
 - [x] 최근 배포 로그에 API 키·액세스토큰·세션토큰·개인 식별값이 남지 않는지 확인
 
-`ALLOWED_ORIGINS`의 Render 환경변수는 별도로 설정되어 있지 않다. 로컬 수정본에서는 `NODE_ENV=production`일 때 Render와 PiNet 운영 주소만 허용하도록 보완했으며, 이 변경을 배포해 공개 환경에서 재확인하기 전까지 위 항목은 완료 처리하지 않는다.
+`ALLOWED_ORIGINS`의 Render 환경변수는 별도로 설정되어 있지 않다. 공개 서버에서 로컬 출처 요청은 `ORIGIN_NOT_ALLOWED`로 차단되고 Render 출처는 출처 검사를 통과한 뒤 비활성화된 데모 인증 단계에서 `DEMO_AUTH_DISABLED`로 종료되는 것을 확인했다.
 
 ## Pi Developer Portal 및 Pi Browser 수동 확인
 
