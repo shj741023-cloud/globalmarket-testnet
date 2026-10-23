@@ -1,6 +1,6 @@
 'use strict';
 
-const state = { user: null, sessionToken: null, onboardingRequired: false, adminKey: null, adminAlertTimer: null, products: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null, activeDirectWalletAddress: null, pendingPiPayments: [], liveUpdateTimer: null, mandatoryAnnouncements: [] };
+const state = { user: null, sessionToken: null, onboardingRequired: false, adminKey: null, adminAlertTimer: null, products: [], promotions: [], productQuery: '', productHasMore: false, categories: [], selectedProduct: null, selectedPromotionId: null, editingProduct: null, registerImages: [], editingImages: [], room: null, agreement: null, trade: null, payment: null, activeRoom: null, activeDirectWalletAddress: null, pendingPiPayments: [], liveUpdateTimer: null, mandatoryAnnouncements: [] };
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
 const safeProductImage = (value) => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) ? value : null;
@@ -290,12 +290,16 @@ async function loadAdminPopular() {
 }
 
 async function loadAdminPromotions() {
-  const { items, products } = await adminApi('/api/v1/admin/promotion-campaigns');
+  const { items, products, packages } = await adminApi('/api/v1/admin/promotion-campaigns');
   const options = products.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.title)}</option>`).join('');
-  $('adminPromotions').innerHTML = `<form id="promotionForm" class="product-form"><label>대상 상품<select id="promotionProduct" required><option value="">상품 선택</option>${options}</select></label><label>광고주·협찬사<input id="promotionSponsor" maxlength="120" required></label><div class="form-row"><label>구분<select id="promotionType"><option value="advertising">광고</option><option value="sponsorship">협찬</option></select></label><label>노출 위치<select id="promotionPlacement"><option value="home_banner">홈 배너</option><option value="home_featured">홈 추천</option><option value="search_top">검색 상단</option></select></label></div><div class="form-row"><label>시작<input id="promotionStart" type="datetime-local" required></label><label>종료<input id="promotionEnd" type="datetime-local" required></label></div><label>운영 메모<textarea id="promotionNote" maxlength="1000"></textarea></label><button class="primary">계약 등록</button></form>` + (items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(item.type)} · ${escapeHtml(item.status)}</small><h3>${escapeHtml(item.sponsorName)}</h3><p>${escapeHtml(new Date(item.startAt).toLocaleString())} ~ ${escapeHtml(new Date(item.endAt).toLocaleString())}</p></div>${['scheduled', 'active'].includes(item.status) ? `<button class="secondary" data-promotion-end="${escapeHtml(item.id)}">계약 종료</button>` : ''}</article>`).join('') : '<p class="empty">등록된 광고·협찬 계약이 없습니다.</p>');
+  const durationOptions = (packages.home_banner || [1, 7]).map((days) => `<option value="${days}">${days}일</option>`).join('');
+  const typeNames = { advertising: '광고', sponsorship: '협찬' }; const statusNames = { scheduled: '예약', active: '노출 중', expired: '기간 종료', ended: '수동 종료' }; const placementNames = { home_banner: '홈 배너', home_featured: '홈 추천', search_top: '검색 상단' };
+  $('adminPromotions').innerHTML = `<p class="form-notice"><strong>Testnet 무료 기능시험</strong> · 실제 광고비나 Test-Pi 결제를 처리하지 않습니다. 가격 정책은 아직 미정입니다.</p><form id="promotionForm" class="product-form"><label>대상 상품<select id="promotionProduct" required><option value="">상품 선택</option>${options}</select></label><label>광고주·협찬사<input id="promotionSponsor" maxlength="120" required></label><div class="form-row"><label>구분<select id="promotionType"><option value="advertising">광고</option><option value="sponsorship">협찬</option></select></label><label>노출 위치<select id="promotionPlacement"><option value="home_banner">홈 배너</option><option value="home_featured">홈 추천</option><option value="search_top">검색 상단</option></select></label></div><div class="form-row"><label>시작<input id="promotionStart" type="datetime-local" required></label><label>시험 기간<select id="promotionDuration" required>${durationOptions}</select></label></div><label>운영 메모<textarea id="promotionNote" maxlength="1000"></textarea></label><button class="primary">시험 계약 등록</button></form>` + (items.length ? items.map((item) => `<article class="management-card"><div><small>${escapeHtml(typeNames[item.type] || item.type)} · ${escapeHtml(statusNames[item.status] || item.status)} · ${escapeHtml(placementNames[item.placement] || item.placement)}</small><h3>${escapeHtml(item.sponsorName)}</h3><p>${escapeHtml(new Date(item.startAt).toLocaleString())} ~ ${escapeHtml(new Date(item.endAt).toLocaleString())}</p><p>노출 ${escapeHtml(item.metrics?.impressions || 0)} · 클릭 ${escapeHtml(item.metrics?.clicks || 0)} · 채팅 시작 ${escapeHtml(item.metrics?.chatStarts || 0)}</p></div>${['scheduled', 'active'].includes(item.status) ? `<button class="secondary" data-promotion-end="${escapeHtml(item.id)}">계약 종료</button>` : ''}</article>`).join('') : '<p class="empty">등록된 광고·협찬 계약이 없습니다.</p>');
+  const refreshDurations = () => { const days = packages[$('promotionPlacement').value] || []; $('promotionDuration').innerHTML = days.map((value) => `<option value="${value}">${value}일</option>`).join(''); };
+  $('promotionPlacement').addEventListener('change', refreshDurations);
   $('promotionForm').addEventListener('submit', async (event) => {
     event.preventDefault();
-    const body = { productId: $('promotionProduct').value, sponsorName: $('promotionSponsor').value, type: $('promotionType').value, placement: $('promotionPlacement').value, startAt: $('promotionStart').value, endAt: $('promotionEnd').value, note: $('promotionNote').value };
+    const body = { productId: $('promotionProduct').value, sponsorName: $('promotionSponsor').value, type: $('promotionType').value, placement: $('promotionPlacement').value, startAt: $('promotionStart').value, durationDays: Number($('promotionDuration').value), note: $('promotionNote').value };
     try { await adminApi('/api/v1/admin/promotion-campaigns', { method: 'POST', body: JSON.stringify(body) }); await Promise.all([loadAdminPromotions(), loadAdminAudit()]); } catch (error) { $('adminResult').textContent = error.message; }
   });
   $('adminPromotions').querySelectorAll('[data-promotion-end]').forEach((button) => button.addEventListener('click', async () => {
@@ -459,6 +463,34 @@ async function loadPopularProducts() {
   $('popularProducts').querySelectorAll('[data-popular-product]').forEach((button) => button.addEventListener('click', () => openProductDetail(button.dataset.popularProduct)));
 }
 
+async function trackPromotion(campaignId, eventType) {
+  if (!campaignId) return;
+  try { await api(`/api/v1/promotions/${encodeURIComponent(campaignId)}/events`, { method: 'POST', body: JSON.stringify({ eventType }) }); } catch (_) {}
+}
+
+function promotionCard(item, banner = false) {
+  const product = item.product;
+  return `<article class="product promoted-product ${banner ? 'promotion-banner' : ''}"><span class="promotion-label">${escapeHtml(item.label)}</span><div class="image">${productImages(product)[0] ? `<img src="${productImages(product)[0]}" alt="${escapeHtml(product.title)} 상품 사진">` : '<span aria-hidden="true">◉</span>'}</div><div><small>${escapeHtml(item.sponsorName)} · Testnet 무료 기능시험</small><h3>${escapeHtml(product.title)}</h3><p class="price">${escapeHtml(product.price)} Test-Pi</p><p class="meta">${escapeHtml(product.region)}</p><button data-promotion-open="${escapeHtml(item.id)}" data-promotion-product="${escapeHtml(product.id)}">상세 보기</button></div></article>`;
+}
+
+async function loadActivePromotions() {
+  const { items } = await api('/api/v1/promotions/active');
+  state.promotions = items;
+  for (const item of items) {
+    const index = state.products.findIndex((product) => product.id === item.product.id);
+    if (index >= 0) state.products[index] = { ...state.products[index], ...item.product }; else state.products.push(item.product);
+  }
+  const banners = items.filter((item) => item.placement === 'home_banner');
+  const promoted = items.filter((item) => item.placement === 'home_featured' || (item.placement === 'search_top' && state.productQuery));
+  $('promotionBannerSection').classList.toggle('hidden', banners.length === 0);
+  $('promotedProductsSection').classList.toggle('hidden', promoted.length === 0);
+  $('promotedProductsTitle').textContent = state.productQuery && promoted.some((item) => item.placement === 'search_top') ? '검색 상단 광고' : '추천 노출';
+  $('promotionBanners').innerHTML = banners.map((item) => promotionCard(item, true)).join('');
+  $('promotedProducts').innerHTML = promoted.map((item) => promotionCard(item)).join('');
+  for (const item of [...banners, ...promoted]) trackPromotion(item.id, 'impression');
+  document.querySelectorAll('[data-promotion-open]').forEach((button) => button.addEventListener('click', () => openProductDetail(button.dataset.promotionProduct, button.dataset.promotionOpen)));
+}
+
 async function loadCategories() {
   const { items } = await api('/api/v1/categories');
   state.categories = items;
@@ -467,10 +499,12 @@ async function loadCategories() {
   $('searchCategory').innerHTML = '<option value="">전체 카테고리</option>' + items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join('');
 }
 
-async function openProductDetail(productId) {
+async function openProductDetail(productId, promotionId = null) {
   const product = state.products.find((item) => item.id === productId);
   if (!product) return;
   state.selectedProduct = product;
+  state.selectedPromotionId = promotionId;
+  if (promotionId) trackPromotion(promotionId, 'click');
   const images = productImages(product);
   $('productDetailGallery').innerHTML = images.length
     ? images.map((image, index) => `<img src="${image}" alt="${escapeHtml(product.title)} 상품 사진 ${index + 1}">`).join('')
@@ -519,6 +553,7 @@ async function chooseTrade(productId) {
   else type = confirm('확인: Testnet 택배 모의 안전거래\n취소: 직거래(플랫폼 안전결제 없음)') ? 'parcel_testnet' : 'direct';
   if (!product.methods.includes(type)) throw new Error('판매자가 허용한 거래방식만 선택할 수 있습니다.');
   const { room } = await api(`/api/v1/products/${productId}/chat-rooms`, { method: 'POST' });
+  if (state.selectedPromotionId) trackPromotion(state.selectedPromotionId, 'chat_start');
   const { agreement } = await api(`/api/v1/chat-rooms/${room.id}/agreements`, {
     method: 'POST', body: JSON.stringify({ price: product.price, type })
   });
@@ -1012,14 +1047,14 @@ $('piLogin').addEventListener('click', () => loginPi().catch((error) => alert(er
 $('onboardingForm').addEventListener('submit', completeOnboarding);
 $('logout').addEventListener('click', () => logout().catch((error) => alert(error.message)));
 $('checklistPayment').addEventListener('click', () => runChecklistPayment().catch((error) => alert(error.message)));
-$('closeProductDetail').addEventListener('click', () => { $('productDetailPanel').classList.add('hidden'); state.selectedProduct = null; });
+$('closeProductDetail').addEventListener('click', () => { $('productDetailPanel').classList.add('hidden'); state.selectedProduct = null; state.selectedPromotionId = null; });
 $('startProductTrade').addEventListener('click', () => { if (state.selectedProduct) chooseTrade(state.selectedProduct.id).catch((error) => alert(error.message)); });
 $('toggleFavorite').addEventListener('click', () => toggleFavorite().catch((error) => alert(error.message)));
 $('reportProduct').addEventListener('click', () => reportSelectedProduct().catch((error) => alert(error.message)));
-$('refresh').addEventListener('click', () => loadProducts().catch((error) => alert(error.message)));
+$('refresh').addEventListener('click', () => loadProducts().then(loadActivePromotions).catch((error) => alert(error.message)));
 $('loadMoreProducts').addEventListener('click', () => loadProducts(state.productQuery, true).catch((error) => alert(error.message)));
-$('searchForm').addEventListener('submit', (event) => { event.preventDefault(); const params = new URLSearchParams(); [['q', 'searchKeyword'], ['categoryId', 'searchCategory'], ['method', 'searchMethod'], ['sort', 'searchSort'], ['minPrice', 'searchMin'], ['maxPrice', 'searchMax']].forEach(([key, id]) => { if ($(id).value) params.set(key, $(id).value); }); loadProducts(params.toString()).catch((error) => alert(error.message)); });
-$('clearSearch').addEventListener('click', () => { $('searchForm').reset(); loadProducts().catch((error) => alert(error.message)); });
+$('searchForm').addEventListener('submit', (event) => { event.preventDefault(); const params = new URLSearchParams(); [['q', 'searchKeyword'], ['categoryId', 'searchCategory'], ['method', 'searchMethod'], ['sort', 'searchSort'], ['minPrice', 'searchMin'], ['maxPrice', 'searchMax']].forEach(([key, id]) => { if ($(id).value) params.set(key, $(id).value); }); loadProducts(params.toString()).then(loadActivePromotions).catch((error) => alert(error.message)); });
+$('clearSearch').addEventListener('click', () => { $('searchForm').reset(); loadProducts().then(loadActivePromotions).catch((error) => alert(error.message)); });
 $('preparePayment').addEventListener('click', () => preparePayment().catch((error) => log(error.message)));
 $('mockComplete').addEventListener('click', () => log('구매확정·모의정산은 관리자 테스트 API 단계에서 수행합니다.'));
 $('refreshMy').addEventListener('click', () => loadMyMarket().catch((error) => alert(error.message)));
@@ -1064,4 +1099,4 @@ $('messageForm').addEventListener('submit', (event) => sendMessage(event).catch(
 $('priceProposalForm').addEventListener('submit', (event) => sendPriceProposal(event).catch((error) => alert(error.message)));
 $('agreementForm').addEventListener('submit', (event) => proposeAgreement(event).catch((error) => alert(error.message)));
 $('refreshChats').addEventListener('click', () => loadChats().catch((error) => alert(error.message)));
-health(); loadProducts().then(loadPopularProducts); loadCategories(); restoreSession();
+health(); loadProducts().then(() => Promise.all([loadPopularProducts(), loadActivePromotions()])); loadCategories(); restoreSession();

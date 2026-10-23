@@ -64,7 +64,7 @@ const { createSuggestion, closeSuggestion } = require('./lib/suggestions');
 const { createCompensation, confirmCompensation, appealCompensation } = require('./lib/gas-compensation');
 const { createMockPayoutBatch } = require('./lib/compensation-payouts');
 const { listPopularProducts, setPopularProduct } = require('./lib/popular-products');
-const { createCampaign, endCampaign } = require('./lib/promotion-campaigns');
+const { PROMOTION_PACKAGES, syncCampaignStatus, createCampaign, endCampaign, recordCampaignEvent } = require('./lib/promotion-campaigns');
 const { enableChatDirectTrade, getConfirmedDirectWalletAddress, assertDirectWalletChangeAllowed, assertDirectWalletReady, assertDirectWalletRegistrationStage, confirmDirectWalletForStart } = require('./lib/chat-direct');
 
 assertTestnetEnvironment();
@@ -340,6 +340,34 @@ async function handleApi(req, res, url) {
   if (method === 'GET' && pathname === '/api/v1/popular-products') {
     const items = listPopularProducts(store.state.products).slice(0, 12).map((product) => publicProduct(store.state, product));
     return sendJson(res, 200, { ok: true, items });
+  }
+  if (method === 'GET' && pathname === '/api/v1/promotions/active') {
+    let changed = false;
+    const items = store.state.promotionCampaigns.map((campaign) => {
+      changed = syncCampaignStatus(campaign) || changed;
+      const product = store.findProduct(campaign.productId);
+      if (campaign.status !== 'active' || !product || !['available', 'reserved'].includes(product.status)) return null;
+      return {
+        id: campaign.id,
+        type: campaign.type,
+        placement: campaign.placement,
+        sponsorName: campaign.sponsorName,
+        startAt: campaign.startAt,
+        endAt: campaign.endAt,
+        label: campaign.type === 'sponsorship' ? '협찬' : '광고',
+        product: publicProduct(store.state, product)
+      };
+    }).filter(Boolean);
+    if (changed) await store.save();
+    return sendJson(res, 200, { ok: true, items, billingMode: 'testnet_free_trial', priceStatus: 'not_set' });
+  }
+  match = pathname.match(/^\/api\/v1\/promotions\/([^/]+)\/events$/);
+  if (method === 'POST' && match) {
+    const campaign = store.state.promotionCampaigns.find((item) => item.id === match[1]); if (!findOr404(res, campaign, 'campaign')) return;
+    const body = await readJson(req);
+    const metrics = recordCampaignEvent(campaign, body.eventType);
+    await store.save();
+    return sendJson(res, 200, { ok: true, metrics });
   }
   if (method === 'GET' && pathname === '/api/v1/categories') {
     return sendJson(res, 200, { ok: true, items: CATEGORIES });
@@ -1187,13 +1215,17 @@ async function handleApi(req, res, url) {
   }
   if (method === 'GET' && pathname === '/api/v1/admin/promotion-campaigns') {
     if (!requireTestAdmin(req, res)) return;
+    let changed = false;
+    store.state.promotionCampaigns.forEach((campaign) => { changed = syncCampaignStatus(campaign) || changed; });
+    if (changed) await store.save();
     const products = store.state.products.filter((item) => ['available', 'reserved'].includes(item.status)).map((item) => ({ id: item.id, title: item.title }));
-    return sendJson(res, 200, { ok: true, items: store.state.promotionCampaigns.slice().reverse(), products });
+    return sendJson(res, 200, { ok: true, items: store.state.promotionCampaigns.slice().reverse(), products, packages: PROMOTION_PACKAGES, billingMode: 'testnet_free_trial', priceStatus: 'not_set' });
   }
   if (method === 'POST' && pathname === '/api/v1/admin/promotion-campaigns') {
     if (!requireTestAdmin(req, res)) return;
     const body = await readJson(req);
     const product = store.findProduct(body.productId); if (!findOr404(res, product, 'product')) return;
+    if (!['available', 'reserved'].includes(product.status)) return apiError(res, 409, 'PRODUCT_NOT_PROMOTABLE', '판매 중이거나 예약된 상품만 광고할 수 있습니다.');
     const campaign = createCampaign({ ...body, id: store.id('campaign'), adminId: testAdminId(req) });
     store.state.promotionCampaigns.push(campaign); recordAudit(req, 'PROMOTION_CAMPAIGN_CREATED', 'promotion_campaign', campaign.id, campaign.note || '광고·협찬 계약 등록', null, campaign);
     await store.save(); return sendJson(res, 201, { ok: true, campaign });

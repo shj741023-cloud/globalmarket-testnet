@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#132a22">
   <title>Global Market Testnet</title>
-  <link rel="stylesheet" href="/styles.css?v=20260820-3">
-  <link rel="stylesheet" href="/payment.css?v=20260820-3">
-  <link rel="stylesheet" href="/policy.css">
-  <link rel="stylesheet" href="/management.css">
+  <link rel="stylesheet" href="/styles.css?v=20261023-1">
+  <link rel="stylesheet" href="/payment.css?v=20261023-1">
+  <link rel="stylesheet" href="/policy.css?v=20261023-1">
+  <link rel="stylesheet" href="/management.css?v=20261023-1">
 </head>
 <body>
   <section id="mandatoryAnnouncementGate" class="mandatory-announcement-gate hidden" role="dialog" aria-modal="true" aria-labelledby="mandatoryAnnouncementTitle">
@@ -47,6 +47,16 @@
       </div>
       <p id="authState" class="status">로그인 전 · 데모 사용자로 API 시험 가능</p>
       <div id="paymentResult" class="payment-result hidden" role="status" aria-live="polite"></div>
+    </section>
+
+    <section id="promotionBannerSection" class="promotion-section hidden" aria-labelledby="promotionBannerTitle">
+      <div class="section-title"><div><p class="eyebrow">Testnet 광고 기능시험</p><h2 id="promotionBannerTitle">홈 배너</h2></div></div>
+      <div id="promotionBanners" class="promotion-banner-list" aria-live="polite"></div>
+    </section>
+
+    <section id="promotedProductsSection" class="promotion-section hidden" aria-labelledby="promotedProductsTitle">
+      <div class="section-title"><div><p class="eyebrow">광고·협찬</p><h2 id="promotedProductsTitle">추천 노출</h2></div></div>
+      <div id="promotedProducts" class="product-grid" aria-live="polite"></div>
     </section>
 
     <section id="onboardingPanel" class="panel hidden" aria-labelledby="onboardingTitle">
@@ -236,6 +246,6 @@
   </nav>
 
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-  <script src="/app.js?v=20260820-17"></script>
+  <script src="/app.js?v=20261023-1"></script>
 </body>
 </html>
