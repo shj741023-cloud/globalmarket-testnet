@@ -5,8 +5,14 @@ const assert = require('node:assert/strict');
 const { isMutationOriginAllowed, assertActiveUser } = require('../lib/request-security');
 
 test('Render와 PiNet 앱 출처의 변경 요청을 허용한다', () => {
-  assert.equal(isMutationOriginAllowed({ method: 'POST', origin: 'https://globalmarket-testnet.onrender.com' }), true);
-  assert.equal(isMutationOriginAllowed({ method: 'PATCH', origin: 'https://globalmarket2678.pinet.com' }), true);
+  assert.equal(isMutationOriginAllowed({ method: 'POST', origin: 'https://globalmarket-testnet.onrender.com', nodeEnv: 'production' }), true);
+  assert.equal(isMutationOriginAllowed({ method: 'PATCH', origin: 'https://globalmarket2678.pinet.com', nodeEnv: 'production' }), true);
+});
+
+test('로컬 출처는 개발 환경에서만 허용한다', () => {
+  assert.equal(isMutationOriginAllowed({ method: 'POST', origin: 'http://localhost:3000', nodeEnv: 'development' }), true);
+  assert.equal(isMutationOriginAllowed({ method: 'POST', origin: 'http://localhost:3000', nodeEnv: 'production' }), false);
+  assert.equal(isMutationOriginAllowed({ method: 'POST', origin: 'http://localhost:3000', nodeEnv: '' }), false);
 });
 
 test('외부 사이트의 쿠키 기반 변경 요청을 차단한다', () => {

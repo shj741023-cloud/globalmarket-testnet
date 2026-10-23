@@ -13,7 +13,7 @@ npm start
 
 `DATABASE_URL`이 설정되면 Neon PostgreSQL의 단일 Testnet 상태 문서에 사용자·상품·채팅·거래 기록을 영구 저장합니다. 설정하지 않은 로컬 개발환경에서는 `data/testnet-db.json` 파일을 사용합니다. 연결 문자열은 `.env` 또는 배포 환경변수에만 저장하고 GitHub에 올리지 않습니다.
 
-브라우저에서 `http://localhost:3000`을 엽니다. 최초 실행 전 `npm install`로 잠금 파일에 정의된 의존성을 설치합니다.
+로컬 실행 시 운영체제 환경변수 `NODE_ENV=development`를 설정한 뒤 브라우저에서 `http://localhost:3000`을 엽니다. 최초 실행 전 `npm install`로 잠금 파일에 정의된 의존성을 설치합니다. 운영 환경에서는 로컬 주소가 변경 요청 허용 목록에 포함되지 않습니다.
 
 ## 테스트
 
